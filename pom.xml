@@ -15,7 +15,6 @@
         <module>flight-service</module>
         <module>payment-service</module>
         <module>notification-service</module>
-        <module>api-gateway</module>
         <module>user-service</module>
     </modules>
 
@@ -25,7 +24,7 @@
             <dependency>
                 <groupId>io.quarkus</groupId>
                 <artifactId>quarkus-bom</artifactId>
-                <version>2.13.0.Final</version>
+                <version>3.17.5</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
