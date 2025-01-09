@@ -1,6 +1,7 @@
 package org.sebastianDev.model;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+
+import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;

@@ -1,6 +1,6 @@
 package org.sebastianDev.controller;
 
-
+import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -24,48 +24,42 @@ public class RoomController {
     RoomService roomService;
 
     @GET
-    public Response getAllRooms() {
-        List<Room> rooms = roomService.getAllRooms();
-        return Response.ok(rooms).build();
+    public Uni<Response> getAllRooms() {
+        return roomService.getAllRooms()
+                .onItem().transform(rooms -> Response.ok(rooms).build());
     }
 
     @GET
     @Path("/{id}")
-    public Response getRoomById(@PathParam("id") UUID id) {
-        Room room = roomService.getRoomById(id);
-        if (room == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(room).build();
+    public Uni<Response> getRoomById(@PathParam("id") UUID id) {
+        return roomService.getRoomById(id)
+                .onItem().ifNotNull().transform(room -> Response.ok(room).build())
+                .onItem().ifNull().continueWith(Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @POST
-    @Transactional
-    public Response createRoom(Room room, @Context UriInfo uriInfo) {
-        roomService.createRoom(room);
-        URI uri = uriInfo.getAbsolutePathBuilder().path(room.id.toString()).build();
-        return Response.created(uri).entity(room).build();
+    public Uni<Response> createRoom(Room room, @Context UriInfo uriInfo) {
+        return roomService.createRoom(room)
+                .onItem().transform(createdRoom -> {
+                    URI uri = uriInfo.getAbsolutePathBuilder().path(createdRoom.id.toString()).build();
+                    return Response.created(uri).entity(createdRoom).build();
+                });
     }
 
     @PUT
     @Path("/{id}")
-    @Transactional
-    public Response updateRoom(@PathParam("id") UUID id, Room roomDetails) {
-        Room updatedRoom = roomService.updateRoom(id, roomDetails);
-        if (updatedRoom == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(updatedRoom).build();
+    public Uni<Response> updateRoom(@PathParam("id") UUID id, Room roomDetails) {
+        return roomService.updateRoom(id, roomDetails)
+                .onItem().ifNotNull().transform(updatedRoom -> Response.ok(updatedRoom).build())
+                .onItem().ifNull().continueWith(Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @DELETE
     @Path("/{id}")
-    @Transactional
-    public Response deleteRoom(@PathParam("id") UUID id) {
-        boolean deleted = roomService.deleteRoom(id);
-        if (!deleted) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.noContent().build();
+    public Uni<Response> deleteRoom(@PathParam("id") UUID id) {
+        return roomService.deleteRoom(id)
+                .onItem().transform(deleted -> deleted
+                        ? Response.noContent().build()
+                        : Response.status(Response.Status.NOT_FOUND).build());
     }
 }

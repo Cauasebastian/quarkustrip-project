@@ -1,5 +1,6 @@
 package org.sebastianDev.controller;
 
+import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -23,48 +24,30 @@ public class HotelController {
     HotelService hotelService;
 
     @GET
-    public Response getAllHotels() {
-        List<Hotel> hotels = hotelService.getAllHotels();
-        return Response.ok(hotels).build();
+    public Uni<List<Hotel>> getAllHotels() {
+        return hotelService.getAllHotels();
     }
 
     @GET
     @Path("/{id}")
-    public Response getHotelById(@PathParam("id") UUID id) {
-        Hotel hotel = hotelService.getHotelById(id);
-        if (hotel == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(hotel).build();
+    public Uni<Response> getHotelById(@PathParam("id") UUID id) {
+        return hotelService.getHotelById(id)
+                .onItem().ifNotNull().transform(hotel -> Response.ok(hotel).build())
+                .onItem().ifNull().continueWith(Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @POST
-    @Transactional
-    public Response createHotel(Hotel hotel, @Context UriInfo uriInfo) {
-        hotelService.createHotel(hotel);
-        URI uri = uriInfo.getAbsolutePathBuilder().path(hotel.id.toString()).build();
-        return Response.created(uri).entity(hotel).build();
-    }
-
-    @PUT
-    @Path("/{id}")
-    @Transactional
-    public Response updateHotel(@PathParam("id") UUID id, Hotel hotelDetails) {
-        Hotel updatedHotel = hotelService.updateHotel(id, hotelDetails);
-        if (updatedHotel == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(updatedHotel).build();
+    public Uni<Response> createHotel(Hotel hotel) {
+        return hotelService.createHotel(hotel)
+                .onItem().transform(createdHotel -> Response.status(Response.Status.CREATED).entity(createdHotel).build());
     }
 
     @DELETE
     @Path("/{id}")
-    @Transactional
-    public Response deleteHotel(@PathParam("id") UUID id) {
-        boolean deleted = hotelService.deleteHotel(id);
-        if (!deleted) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.noContent().build();
+    public Uni<Response> deleteHotel(@PathParam("id") UUID id) {
+        return hotelService.deleteHotel(id)
+                .onItem().transform(deleted -> deleted
+                        ? Response.noContent().build()
+                        : Response.status(Response.Status.NOT_FOUND).build());
     }
 }

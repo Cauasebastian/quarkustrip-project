@@ -1,6 +1,7 @@
 package org.sebastianDev.service;
 
 
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.sebastianDev.model.Hotel;
@@ -8,40 +9,36 @@ import org.sebastianDev.repository.HotelRepository;
 
 import java.util.List;
 import java.util.UUID;
-
 @ApplicationScoped
 public class HotelService {
 
     @Inject
     HotelRepository hotelRepository;
 
-    public List<Hotel> getAllHotels() {
+    public Uni<List<Hotel>> getAllHotels() {
         return hotelRepository.listAll();
     }
 
-    public Hotel getHotelById(UUID id) {
+    public Uni<Hotel> getHotelById(UUID id) {
         return hotelRepository.findById(id);
     }
 
-    public Hotel createHotel(Hotel hotel) {
-        hotelRepository.persist(hotel);
-        return hotel;
+    public Uni<Hotel> createHotel(Hotel hotel) {
+        return hotelRepository.persist(hotel).replaceWith(hotel);
     }
 
-    public Hotel updateHotel(UUID id, Hotel hotelDetails) {
-        Hotel hotel = hotelRepository.findById(id);
-        if (hotel != null) {
+    public Uni<Hotel> updateHotel(UUID id, Hotel hotelDetails) {
+        return hotelRepository.findById(id).onItem().ifNotNull().transformToUni(hotel -> {
             hotel.name = hotelDetails.name;
             hotel.address = hotelDetails.address;
             hotel.city = hotelDetails.city;
             hotel.country = hotelDetails.country;
             hotel.rating = hotelDetails.rating;
-            hotelRepository.persist(hotel);
-        }
-        return hotel;
+            return hotelRepository.persist(hotel).replaceWith(hotel);
+        });
     }
 
-    public boolean deleteHotel(UUID id) {
-        return hotelRepository.deleteById(id);
+    public Uni<Boolean> deleteHotel(UUID id) {
+        return hotelRepository.delete("id", id).map(count -> count > 0);
     }
 }

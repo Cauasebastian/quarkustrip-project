@@ -19,7 +19,7 @@ services:
     image: dpage/pgadmin4
     container_name: pgadmin_hotel
     ports:
-      - "8080:80"                    # Acesso ao pgAdmin na porta 8080
+      - "8282:80"                    # Acesso ao pgAdmin na porta 8080
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@hotel.com
       PGADMIN_DEFAULT_PASSWORD: admin
