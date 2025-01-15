@@ -1,39 +1,32 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:13
+  postgres-hotel:
+    image: postgres:15
     container_name: postgres_hotel
     ports:
       - "5432:5432" # Mapeamento da porta
     environment:
-      POSTGRES_USER: postgres       # Usuário padrão
-      POSTGRES_PASSWORD: password   # Senha do usuário
-      POSTGRES_DB: hotel_db         # Banco de dados padrão
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: hotel_db
     volumes:
-      - postgres_hotel_data:/var/lib/postgresql/data # Persistência de dados
-    networks:
-      - hotel-network                # Rede dedicada ao PostgreSQL e outros serviços
+      - postgres_hotel_data:/var/lib/postgresql/data
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin_hotel
+  postgres-booking:
+    image: postgres:15
+    container_name: postgres_booking
     ports:
-      - "8282:80"                    # Acesso ao pgAdmin na porta 8080
+      - "5433:5432" # Mapeamento da porta
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@hotel.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    depends_on:
-      - postgres                     # Garante que o PostgreSQL esteja ativo antes de iniciar o pgAdmin
-    networks:
-      - hotel-network                # Conecta ao mesmo network do PostgreSQL
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: booking_db
     volumes:
-      - ./servers.json:/pgadmin4/servers.json # Configuração de servidores (opcional)
+      - postgres_booking_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_hotel_data: # Corrigido para coincidir com o nome usado no serviço
+  postgres_hotel_data:
     driver: local
-
-networks:
-  hotel-network:
-    driver: bridge
+  postgres_booking_data:
+    driver: local

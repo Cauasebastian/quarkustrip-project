@@ -1,0 +1,29 @@
+// This is the JSON file that contains the data for the hotel service.
+{
+  "name": "Grand Plaza Hotel",
+  "address": "123 Main Street",
+  "city": "New York",
+  "country": "USA",
+  "rating": 5
+}
+// Room
+{
+  "hotel": {
+    "id": "550e8400-e29b-41d4-a716-446655440000"
+  },
+  "roomNumber": "101",
+  "roomType": "Double",
+  "price": 120.50,
+  "isAvailable": true
+}
+// Hotel Reservation
+{
+  "room": {
+    "id": "7e94c118-8d4a-4dbb-8333-4cfd20b31343"
+  },
+  "bookingId": "c561a9e8-d3fc-4c39-9c92-3c5b1b8a2301",
+  "userId": "8a3c9d25-7e9d-4831-993f-4cfddb26a27f",
+  "checkInDate": "2025-02-01",
+  "checkOutDate": "2025-02-07",
+  "status": "Booked"
+}

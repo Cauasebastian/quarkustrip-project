@@ -1,15 +1,17 @@
 package org.sebastianDev.service;
 
+import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
+import jakarta.ws.rs.NotFoundException;
 import org.sebastianDev.model.Room;
 import org.sebastianDev.repository.HotelRepository;
 import org.sebastianDev.repository.RoomRepository;
 
 import java.util.List;
 import java.util.UUID;
+
 @ApplicationScoped
 public class RoomService {
 
@@ -28,25 +30,32 @@ public class RoomService {
     }
 
     public Uni<Room> createRoom(Room room) {
-        return hotelRepository.findById(room.hotel.id)
-                .onItem().ifNotNull().transformToUni(hotel -> {
-                    room.hotel = hotel;
-                    return roomRepository.persist(room).replaceWith(room);
-                })
-                .onItem().ifNull().failWith(new IllegalArgumentException("Hotel não encontrado para o ID: " + room.hotel.id));
+        return Panache.withTransaction(() ->
+                hotelRepository.findById(room.hotel.id)
+                        .onItem().ifNull().failWith(new NotFoundException("Hotel não encontrado (ID: " + room.hotel.id + ")"))
+                        .invoke(hotel -> room.hotel = hotel)
+                        .call(() -> roomRepository.persist(room))
+        ).replaceWith(room);
     }
 
     public Uni<Room> updateRoom(UUID id, Room roomDetails) {
-        return roomRepository.findById(id).onItem().ifNotNull().transformToUni(room -> {
-            room.roomNumber = roomDetails.roomNumber;
-            room.roomType = roomDetails.roomType;
-            room.price = roomDetails.price;
-            room.isAvailable = roomDetails.isAvailable;
-            return roomRepository.persist(room).replaceWith(room);
-        });
+        return Panache.withTransaction(() ->
+                roomRepository.findById(id)
+                        .onItem().ifNull().failWith(new NotFoundException("Quarto não encontrado (ID: " + id + ")"))
+                        .invoke(room -> {
+                            room.roomNumber = roomDetails.roomNumber;
+                            room.roomType = roomDetails.roomType;
+                            room.price = roomDetails.price;
+                            room.isAvailable = roomDetails.isAvailable;
+                        })
+                        .call(room -> roomRepository.persist(room))
+        );
     }
 
     public Uni<Boolean> deleteRoom(UUID id) {
-        return roomRepository.delete("id", id).map(count -> count > 0);
+        return Panache.withTransaction(() ->
+                roomRepository.delete("id", id)
+                        .map(count -> count > 0)
+        );
     }
 }
