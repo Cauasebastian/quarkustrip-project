@@ -1,0 +1,10 @@
+//Post Booking
+{
+  "userId": "123e4567-e89b-12d3-a456-426614174001",
+  "roomId": "10b06a2a-884a-4362-a322-90a8d3a6164d",
+  "transportId": "123e4567-e89b-12d3-a456-426614174003",
+  "flightId": "123e4567-e89b-12d3-a456-426614174004",
+  "totalAmount": 150.75,
+  "checkInDate": "2025-02-01",
+  "checkOutDate": "2025-02-07"
+}

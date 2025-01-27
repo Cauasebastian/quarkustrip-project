@@ -4,6 +4,7 @@ import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -21,6 +22,12 @@ public class Booking extends PanacheEntityBase {
 
     @Column(name = "room_id", nullable = false, columnDefinition = "UUID")
     public UUID roomId;
+
+    @Column(name = "check_in_date", nullable = false)
+    public LocalDate checkInDate;
+
+    @Column(name = "check_out_date", nullable = false)
+    public LocalDate checkOutDate;
 
     @Column(name = "transport_id", nullable = false, columnDefinition = "UUID")
     public UUID transportId;

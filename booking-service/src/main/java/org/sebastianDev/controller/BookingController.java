@@ -1,14 +1,17 @@
 package org.sebastianDev.controller;
 
+import io.smallrye.common.annotation.NonBlocking;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.sebastianDev.model.Booking;
 import org.sebastianDev.service.BookingService;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Path("/bookings")
 @Produces(MediaType.APPLICATION_JSON)
@@ -18,28 +21,19 @@ public class BookingController {
     BookingService bookingService;
 
     @GET
-    public Uni<List<Booking>> getAllReservations() {
-        return bookingService.getAllReservations();
+    public Uni<String> getAllReservations() {
+        return Uni.createFrom().item("Hello World");
     }
 
-    @GET
-    @Path("/{id}")
-    public Uni<Booking> getReservationById(UUID id) {
-        return bookingService.getReservationById(id);
-    }
 
     @POST
-    public Uni<Booking> createReservation(Booking reservation) {
-        return bookingService.createReservation(reservation);
+    public Uni<Response> createReservation(Booking reservation) {
+        return bookingService.createReservation(reservation)
+                .onItem().transform(booking -> Response.ok(booking).build())
+                .onFailure().recoverWithItem(e ->
+                        Response.status(Response.Status.BAD_REQUEST)
+                                .entity("{\"error\":\"" + e.getMessage() + "\"}")
+                                .build());
     }
-    @PUT
-    @Path("/{id}")
-    public Uni<Booking> updateReservation(@PathParam("id") UUID id, Booking reservationDetails) {
-        return bookingService.updateReservation(id, reservationDetails);
-    }
-    @DELETE
-    @Path("/{id}")
-    public Uni<Boolean> deleteReservation(@PathParam("id") UUID id) {
-        return bookingService.deleteReservation(id);
-    }
+
 }

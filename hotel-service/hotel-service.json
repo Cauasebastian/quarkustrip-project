@@ -1,4 +1,5 @@
 // This is the JSON file that contains the data for the hotel service.
+//hotels
 {
   "name": "Grand Plaza Hotel",
   "address": "123 Main Street",
@@ -7,9 +8,10 @@
   "rating": 5
 }
 // Room
+//rooms
 {
   "hotel": {
-    "id": "550e8400-e29b-41d4-a716-446655440000"
+    "id": "c0e8f95e-307a-4c2e-b219-ac550c15d326"
   },
   "roomNumber": "101",
   "roomType": "Double",
@@ -17,6 +19,7 @@
   "isAvailable": true
 }
 // Hotel Reservation
+//reservations
 {
   "room": {
     "id": "7e94c118-8d4a-4dbb-8333-4cfd20b31343"
@@ -25,5 +28,5 @@
   "userId": "8a3c9d25-7e9d-4831-993f-4cfddb26a27f",
   "checkInDate": "2025-02-01",
   "checkOutDate": "2025-02-07",
-  "status": "Booked"
+  "status": "available"
 }
