@@ -21,10 +21,42 @@ public class BookingController {
     BookingService bookingService;
 
     @GET
-    public Uni<String> getAllReservations() {
-        return Uni.createFrom().item("Hello World");
+    public Uni<List<Booking>> getAllReservations() {
+        return bookingService.getAllReservations();
     }
 
+    @GET
+    @Path("/{id}")
+    public Uni<Response> getReservationById(@PathParam("id") UUID id) {
+        return bookingService.getReservationById(id)
+                .onItem().transform(booking -> Response.ok(booking).build())
+                .onFailure().recoverWithItem(e ->
+                        Response.status(Response.Status.NOT_FOUND)
+                                .entity("{\"error\":\"" + e.getMessage() + "\"}")
+                                .build());
+    }
+
+    @PUT
+    @Path("/{id}")
+    public Uni<Response> updateReservation(@PathParam("id") UUID id, Booking reservation) {
+        return bookingService.updateReservation(id, reservation)
+                .onItem().transform(booking -> Response.ok(booking).build())
+                .onFailure().recoverWithItem(e ->
+                        Response.status(Response.Status.BAD_REQUEST)
+                                .entity("{\"error\":\"" + e.getMessage() + "\"}")
+                                .build());
+    }
+
+    @DELETE
+    @Path("/{id}")
+    public Uni<Response> deleteReservation(@PathParam("id") UUID id) {
+        return bookingService.deleteReservation(id)
+                .onItem().transform(booking -> Response.noContent().build())
+                .onFailure().recoverWithItem(e ->
+                        Response.status(Response.Status.NOT_FOUND)
+                                .entity("{\"error\":\"" + e.getMessage() + "\"}")
+                                .build());
+    }
 
     @POST
     public Uni<Response> createReservation(Booking reservation) {

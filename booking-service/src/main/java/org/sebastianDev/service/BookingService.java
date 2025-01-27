@@ -9,6 +9,8 @@ import org.sebastianDev.model.Booking;
 import org.jboss.logging.Logger;
 
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
 
 @ApplicationScoped
 public class BookingService {
@@ -46,5 +48,34 @@ public class BookingService {
         return com.google.protobuf.Timestamp.newBuilder()
                 .setSeconds(date.atStartOfDay(ZoneOffset.UTC).toEpochSecond())
                 .build();
+    }
+
+    public Uni<List<Booking>> getAllReservations() {
+        return Booking.listAll();
+    }
+
+    public Uni<Booking> getReservationById(UUID id) {
+        return Booking.findById(id);
+    }
+
+    public Uni<Booking> updateReservation(UUID id, Booking updatedReservation) {
+        return Panache.withTransaction(() -> Booking.findById(id)
+                .onItem().ifNotNull().transformToUni(reservation -> {
+                    reservation.userId = updatedReservation.userId;
+                    reservation.roomId = updatedReservation.roomId;
+                    reservation.checkInDate = updatedReservation.checkInDate;
+                    reservation.checkOutDate = updatedReservation.checkOutDate;
+                    reservation.transportId = updatedReservation.transportId;
+                    reservation.flightId = updatedReservation.flightId;
+                    reservation.totalAmount = updatedReservation.totalAmount;
+                    reservation.status = updatedReservation.status;
+                    return reservation.persist();
+                })
+                .onItem().ifNull().failWith(new RuntimeException("Booking not found")));
+    }
+
+    public Uni<Void> deleteReservation(UUID id) {
+        return Panache.withTransaction(() -> Booking.deleteById(id))
+                .replaceWithVoid();
     }
 }
