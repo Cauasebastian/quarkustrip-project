@@ -54,6 +54,17 @@ public class Booking extends PanacheEntityBase {
         updatedAt = OffsetDateTime.now();
         status = "PENDING";
     }
+    // Na classe Booking
+    public void updateFrom(Booking source) {
+        this.userId = source.userId;
+        this.roomId = source.roomId;
+        this.checkInDate = source.checkInDate;
+        this.checkOutDate = source.checkOutDate;
+        this.transportId = source.transportId;
+        this.flightId = source.flightId;
+        this.totalAmount = source.totalAmount;
+        this.status = source.status;
+    }
     @PreUpdate
     public void preUpdate() {
         updatedAt = OffsetDateTime.now();

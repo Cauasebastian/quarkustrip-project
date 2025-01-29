@@ -13,16 +13,7 @@ public class BookingRepository implements PanacheRepository<Booking> {
     public Uni<Booking> findById(UUID id) {
         return find("id", id).firstResult();
     }
-
-    public Uni<List<Booking>> findAll() {
-        return listAll();
-    }
-
-    public Uni<Booking> update(Booking booking) {
-        return persist(booking);
-    }
-
-    public Uni<Boolean> delete(UUID id) {
+    public Uni<Boolean> deleteById(UUID id) {
         return deleteById(id);
     }
 }

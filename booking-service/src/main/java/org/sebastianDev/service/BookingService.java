@@ -4,9 +4,11 @@ import io.quarkus.grpc.GrpcClient;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.sebastianDev.grpc.*;
 import org.sebastianDev.model.Booking;
 import org.jboss.logging.Logger;
+import org.sebastianDev.repository.BookingRepository;
 
 import java.time.ZoneOffset;
 import java.util.List;
@@ -19,6 +21,9 @@ public class BookingService {
 
     @GrpcClient("availabilityService")
     MutinyAvailabilityServiceGrpc.MutinyAvailabilityServiceStub availabilityClient;
+
+    @Inject
+    BookingRepository bookingRepository;
 
     public Uni<Booking> createReservation(Booking reservation) {
         CheckRoomAvailabilityRequest request = CheckRoomAvailabilityRequest.newBuilder()
@@ -51,31 +56,26 @@ public class BookingService {
     }
 
     public Uni<List<Booking>> getAllReservations() {
-        return Booking.listAll();
+        return bookingRepository.listAll();
     }
 
     public Uni<Booking> getReservationById(UUID id) {
-        return Booking.findById(id);
+        return bookingRepository.findById(id);
     }
 
     public Uni<Booking> updateReservation(UUID id, Booking updatedReservation) {
-        return Panache.withTransaction(() -> Booking.findById(id)
-                .onItem().ifNotNull().transformToUni(reservation -> {
-                    reservation.userId = updatedReservation.userId;
-                    reservation.roomId = updatedReservation.roomId;
-                    reservation.checkInDate = updatedReservation.checkInDate;
-                    reservation.checkOutDate = updatedReservation.checkOutDate;
-                    reservation.transportId = updatedReservation.transportId;
-                    reservation.flightId = updatedReservation.flightId;
-                    reservation.totalAmount = updatedReservation.totalAmount;
-                    reservation.status = updatedReservation.status;
-                    return reservation.persist();
+        return Panache.withTransaction(() -> bookingRepository.findById(id)
+                .onItem().ifNotNull().transformToUni(existingBooking -> {
+                    existingBooking.updateFrom(updatedReservation);
+                    return bookingRepository.persist(existingBooking);
                 })
-                .onItem().ifNull().failWith(new RuntimeException("Booking not found")));
+                .onItem().ifNull().failWith(new RuntimeException("Reserva não encontrada com ID: " + id))
+        );
     }
 
     public Uni<Void> deleteReservation(UUID id) {
-        return Panache.withTransaction(() -> Booking.deleteById(id))
-                .replaceWithVoid();
+        return Panache.withTransaction(() -> bookingRepository.deleteById(id))
+                .replaceWithVoid()
+                .onItem().invoke(() -> LOG.info("Reserva deletada com sucesso"));
     }
 }
