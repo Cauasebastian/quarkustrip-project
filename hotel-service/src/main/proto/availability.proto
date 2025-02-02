@@ -10,6 +10,7 @@ import "google/protobuf/timestamp.proto";
 
 service AvailabilityService {
   rpc checkAvailabilityAndOccupy(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
+  rpc cancelReservation(CancelReservationRequest) returns (CancelReservationResponse); // Novo método
 }
 
 message CheckAvailabilityRequest {
@@ -22,5 +23,14 @@ message CheckAvailabilityRequest {
 
 message CheckAvailabilityResponse {
   bool is_available = 1;
+  string message = 2;
+}
+message CancelReservationRequest {
+  string room_id = 1;
+  string booking_id = 2;
+}
+
+message CancelReservationResponse {
+  bool success = 1;
   string message = 2;
 }
