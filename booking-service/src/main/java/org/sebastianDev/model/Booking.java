@@ -2,6 +2,7 @@ package org.sebastianDev.model;
 
 import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.GenericGenerator;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,8 +14,9 @@ import java.util.UUID;
 public class Booking extends PanacheEntityBase {
 
     @Id
+    @GeneratedValue(generator = "assigned") // ✅ Estratégia "assigned" para IDs manuais
+    @GenericGenerator(name = "assigned", strategy = "assigned")
     @Column(columnDefinition = "UUID")
-    @GeneratedValue(strategy = GenerationType.AUTO)
     public UUID id;
 
     @Column(name = "user_id", nullable = false, columnDefinition = "UUID")

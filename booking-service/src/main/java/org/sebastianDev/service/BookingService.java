@@ -25,31 +25,60 @@ public class BookingService {
     @Inject
     BookingRepository bookingRepository;
 
-    public Uni<Booking> createReservation(Booking reservation) {
-        CheckRoomAvailabilityRequest request = CheckRoomAvailabilityRequest.newBuilder()
-                .setRoomId(reservation.roomId.toString())
-                .setCheckInDate(convertToTimestamp(reservation.checkInDate))
-                .setCheckOutDate(convertToTimestamp(reservation.checkOutDate))
+    public Uni<Booking> createBooking(Booking booking) {
+        // Logando as datas para depuração
+        LOG.infof("Data de Check-in: %s, Data de Check-out: %s", booking.checkInDate, booking.checkOutDate);
+
+        // Verificação se as datas estão nulas
+        if (booking.checkInDate == null || booking.checkOutDate == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Check-in date and check-out date must not be null"));
+        }
+        // Gere o ID se não existir
+        if (booking.id == null) {
+            booking.id = UUID.randomUUID(); //  Garante que o ID está definido
+        }
+
+        LOG.infof("Criando booking: id=%s, roomId=%s", booking.id, booking.roomId);
+
+        CheckAvailabilityRequest request = CheckAvailabilityRequest.newBuilder()
+                .setBookingId(booking.id.toString())
+                .setUserId(booking.userId.toString())
+                .setRoomId(booking.roomId.toString())
+                .setCheckInDate(convertToTimestamp(booking.checkInDate))  // Aqui usamos a verificação com o novo método
+                .setCheckOutDate(convertToTimestamp(booking.checkOutDate)) // Aqui usamos a verificação com o novo método
                 .build();
 
-        return availabilityClient.checkRoomAvailability(request)
-                .onItem().transformToUni(response -> {
+        return availabilityClient.checkAvailabilityAndOccupy(request)
+                .onItem().transformToUni((CheckAvailabilityResponse response) -> {
                     if (!response.getIsAvailable()) {
-                        LOG.errorf("Quarto não disponível: %s", response.getMessage());
-                        return Uni.createFrom().failure(new RuntimeException(response.getMessage()));
+                        // Quarto não disponível -> falha
+                        return Uni.createFrom().failure(new RuntimeException("HotelService: " + response.getMessage()));
                     }
-                    return persistReservation(reservation);
+
+                    LOG.infof("Quarto disponível (%s). Persistindo booking localmente...", response.getMessage());
+
+                    return persistBooking(booking);
                 })
-                .onFailure().invoke(e -> LOG.error("Falha ao criar reserva", e));
+                .onItem().invoke(persistedBooking -> {
+                    LOG.infof("Booking criado com sucesso. ID=%s, Status=%s", persistedBooking.id, persistedBooking.status);
+                })
+                .onFailure().invoke(th -> {
+                    LOG.error("Falha ao criar booking.", th);
+                });
     }
 
-    private Uni<Booking> persistReservation(Booking reservation) {
-        return Panache.withTransaction(() -> reservation.persist())
-                .onItem().invoke(() -> LOG.info("Reserva criada com sucesso"))
-                .onItem().transform(ignore -> reservation);
+    private Uni<Booking> persistBooking(Booking booking) {
+        return Panache.withTransaction(() -> booking.persist())
+                .replaceWith(booking);
     }
+
 
     private com.google.protobuf.Timestamp convertToTimestamp(java.time.LocalDate date) {
+        if (date == null) {
+            // Adicionando um log ou lançando uma exceção para informar que a data não foi fornecida
+            LOG.error("Data fornecida é nula!");
+            throw new IllegalArgumentException("Data fornecida é nula!");
+        }
         return com.google.protobuf.Timestamp.newBuilder()
                 .setSeconds(date.atStartOfDay(ZoneOffset.UTC).toEpochSecond())
                 .build();

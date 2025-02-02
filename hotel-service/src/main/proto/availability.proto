@@ -2,29 +2,25 @@ syntax = "proto3";
 
 option java_multiple_files = true;
 option java_package = "org.sebastianDev";
-option java_outer_classname = "AvailabilityGrpcProto";
+option java_outer_classname = "ReservationGrpcProto";
 
 package availability;
 
 import "google/protobuf/timestamp.proto";
 
-// =======================================
-// Serviço gRPC do Hotel
-// =======================================
 service AvailabilityService {
-  rpc CheckRoomAvailability(CheckRoomAvailabilityRequest) returns (RoomAvailabilityResponse);
+  rpc checkAvailabilityAndOccupy(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
 }
 
-// =======================================
-// Mensagens de Request e Response
-// =======================================
-message CheckRoomAvailabilityRequest {
-  string room_id = 1;
-  google.protobuf.Timestamp check_in_date = 2;
-  google.protobuf.Timestamp check_out_date = 3;
+message CheckAvailabilityRequest {
+  string booking_id = 1;
+  string user_id = 2;
+  string room_id = 3;
+  google.protobuf.Timestamp check_in_date = 4;
+  google.protobuf.Timestamp check_out_date = 5;
 }
 
-message RoomAvailabilityResponse {
+message CheckAvailabilityResponse {
   bool is_available = 1;
   string message = 2;
 }

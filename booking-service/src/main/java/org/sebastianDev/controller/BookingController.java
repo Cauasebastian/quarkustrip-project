@@ -60,7 +60,7 @@ public class BookingController {
 
     @POST
     public Uni<Response> createReservation(Booking reservation) {
-        return bookingService.createReservation(reservation)
+        return bookingService.createBooking(reservation)
                 .onItem().transform(booking -> Response.ok(booking).build())
                 .onFailure().recoverWithItem(e ->
                         Response.status(Response.Status.BAD_REQUEST)
