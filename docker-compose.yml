@@ -25,8 +25,22 @@ services:
     volumes:
       - postgres_booking_data:/var/lib/postgresql/data
 
+  postgres-flight:
+    image: postgres:15
+    container_name: postgres_flight
+    ports:
+      - "5434:5432" # Mapeamento da porta
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: flight_db
+    volumes:
+      - postgres_flight_data:/var/lib/postgresql/data
+
 volumes:
   postgres_hotel_data:
     driver: local
   postgres_booking_data:
+    driver: local
+  postgres_flight_data:
     driver: local
