@@ -1,0 +1,20 @@
+// Cria voo com 150 assentos
+// POST /flights
+{
+"flightNumber": "AZ404",
+"origin": "GRU",
+"destination": "SFO",
+"departureTime": "2025-07-01T08:00:00Z",
+"arrivalTime": "2025-07-01T18:00:00Z",
+"totalSeats": 150
+}
+
+// Reserva assento 12A
+// POST /reservations
+{
+"flightId": "e23c33e0-bade-4188-8531-e3aebb7c92a2",
+"seatNumber": "12A",
+"userId": "usr-9a8b7c6d5e"
+}
+// Obter assentos
+// GET /flights/1ea08c33-579f-4d45-80c0-80e78b09f2a3/seats

@@ -1,5 +1,6 @@
 package org.sebastianDev.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
@@ -17,6 +18,7 @@ public class FlightSeat extends PanacheEntityBase {
     @GeneratedValue
     public UUID id;
 
+    @JsonBackReference
     @ManyToOne
     @JoinColumn(name = "flight_id", nullable = false)
     public Flight flight;
