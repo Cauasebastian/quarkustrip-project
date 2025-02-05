@@ -4,7 +4,6 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.persistence.LockModeType;
 import org.sebastianDev.dto.FlightReservationSummaryDTO;
 import org.sebastianDev.dto.ReservationRequest;
 import org.sebastianDev.model.FlightReservation;
@@ -23,24 +22,23 @@ public class ReservationService {
     FlightSeatRepository flightSeatRepository;
 
     @Inject
-    FlightReservationRepository reservationRepository;
+    FlightReservationRepository flightReservationRepository;
 
     public Uni<FlightReservation> createReservation(ReservationRequest request) {
-        // Inicia uma transação
+        // Start the transaction
         return Panache.withTransaction(() ->
-                // Busca o assento específico que queremos reservar
                 flightSeatRepository.find("flight.id = ?1 and seatNumber = ?2", request.flightId, request.seatNumber)
                         .firstResult()
                         .onItem().ifNotNull().transformToUni(seat -> {
-                            // Verifica se o assento está disponível
+                            // Check if the seat is available
                             if (seat.status != FlightSeat.SeatStatus.AVAILABLE) {
                                 throw new IllegalStateException("Seat not available");
                             }
 
-                            // Marca o assento como reservado
+                            // Mark the seat as booked
                             seat.status = FlightSeat.SeatStatus.BOOKED;
 
-                            // Persiste a atualização do assento e cria a reserva
+                            // Persist the seat update and create the reservation
                             return flightSeatRepository.persist(seat)
                                     .onItem().transformToUni(updatedSeat -> {
                                         FlightReservation reservation = new FlightReservation();
@@ -48,34 +46,34 @@ public class ReservationService {
                                         reservation.userId = request.userId;
                                         reservation.bookingId = request.bookingId;
 
-                                        // Persiste a reserva
-                                        return reservationRepository.persist(reservation);
+                                        // Persist the reservation
+                                        return flightReservationRepository.persist(reservation);
                                     });
                         })
         );
     }
 
-    // Método para obter todas as reservas
+    // Method to get all reservations
     public Uni<List<FlightReservationSummaryDTO>> getAllReservations() {
-        return reservationRepository.listAll()
+        return flightReservationRepository.listAll()
                 .map(reservations -> reservations.stream()
                         .map(this::convertToFlightReservationSummaryDTO)
                         .collect(Collectors.toList()));
     }
 
-    // Método para obter uma reserva por ID
+    // Method to get a reservation by ID
     public Uni<FlightReservationSummaryDTO> getReservationById(UUID id) {
-        return reservationRepository.findById(id)
+        return flightReservationRepository.findById(id)
                 .onItem().transform(reservation -> {
                     if (reservation != null) {
-                        return convertToFlightReservationSummaryDTO((FlightReservation) reservation);
+                        return convertToFlightReservationSummaryDTO(reservation);
                     } else {
-                        return null; // Ou lançar uma exceção, se necessário
+                        return null; // Or throw an exception if necessary
                     }
                 });
     }
 
-    // Método de conversão para DTO
+    // Method to convert FlightReservation to DTO
     private FlightReservationSummaryDTO convertToFlightReservationSummaryDTO(FlightReservation reservation) {
         return new FlightReservationSummaryDTO(
                 reservation.id,

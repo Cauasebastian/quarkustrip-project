@@ -37,6 +37,9 @@ public class Booking extends PanacheEntityBase {
     @Column(name = "flight_id", nullable = false, columnDefinition = "UUID")
     public UUID flightId;
 
+    @Column(name = "seat_number", nullable = false)
+    public String seatNumber;
+
     @Column(name = "total_amount", nullable = false)
     public BigDecimal totalAmount;
 

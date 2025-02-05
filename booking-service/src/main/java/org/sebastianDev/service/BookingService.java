@@ -5,10 +5,7 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.sebastianDev.CancelReservationRequest;
-import org.sebastianDev.CancelReservationResponse;
-import org.sebastianDev.CheckAvailabilityRequest;
-import org.sebastianDev.MutinyAvailabilityServiceGrpc;
+import org.sebastianDev.*;
 import org.jboss.logging.Logger;
 import org.sebastianDev.model.Booking;
 import org.sebastianDev.repository.BookingRepository;
@@ -26,11 +23,14 @@ public class BookingService {
     @GrpcClient("availabilityService")
     MutinyAvailabilityServiceGrpc.MutinyAvailabilityServiceStub availabilityClient;
 
+    @GrpcClient("flightService")
+    MutinyFlightServiceGrpc.MutinyFlightServiceStub flightServiceClient;
+
     @Inject
     BookingRepository bookingRepository;
 
     /**
-     * Cria uma reserva de hotel por meio de gRPC e persiste no banco de dados se a reserva for bem-sucedida.
+     * Creates a hotel booking via gRPC and persists in the database if successful.
      * @param booking
      * @return Uni<Booking>
      */
@@ -39,10 +39,11 @@ public class BookingService {
         if (booking.checkInDate == null || booking.checkOutDate == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("Check-in date and check-out date must not be null"));
         }
-        LOG.infof("Criando booking: %s", booking);
-        // Gerar o ID
+        LOG.infof("Creating booking: %s", booking);
+
+        // Generate ID if not already set
         if (booking.id == null) {
-            booking.id = UUID.randomUUID(); //  Garante que o ID está definido
+            booking.id = UUID.randomUUID(); // Ensure the ID is set
         }
 
         CheckAvailabilityRequest request = CheckAvailabilityRequest.newBuilder()
@@ -53,30 +54,59 @@ public class BookingService {
                 .setCheckOutDate(convertToTimestamp(booking.checkOutDate))
                 .build();
 
-        LOG.infof("Verificando disponibilidade: %s", request);
+        LOG.infof("Checking availability: %s", request);
         return availabilityClient.checkAvailabilityAndOccupy(request)
                 .onItem().transformToUni(response -> {
                     if (!response.getIsAvailable()) {
                         return Uni.createFrom().failure(new RuntimeException("HotelService: " + response.getMessage()));
                     }
-                    LOG.infof("Quarto disponível. Persistindo booking: %s", booking);
-                    return persistBooking(booking)
-                            .onFailure().call(th -> {
-                                LOG.errorf("Persist failed, canceling reservation: %s", th.getMessage());
-                                return cancelReservationViaGrpc(booking.roomId, booking.id)
-                                        .onFailure().invoke(e -> LOG.errorf("Falha no cancelamento gRPC: %s", e.getMessage()))
-                                        .replaceWith(Uni.createFrom().failure(th))
-                                        .onItem().transformToUni(ignored -> Uni.createFrom().failure(th));
+                    LOG.infof("Room available. Persisting booking: %s", booking);
+
+                    // After room is available, attempt to reserve seat on the flight
+                    return reserveSeatOnFlight(booking)
+                            .onItem().transformToUni(seatResponse -> {
+                                if (!seatResponse.getSuccess()) {
+                                    return Uni.createFrom().failure(new RuntimeException("Flight seat reservation failed: " + seatResponse.getMessage()));
+                                }
+
+                                // Persist the booking if seat reservation was successful
+                                return persistBooking(booking)
+                                        .onFailure().call(th -> {
+                                            LOG.errorf("Persist failed, canceling reservation: %s", th.getMessage());
+                                            return cancelReservationViaGrpc(booking.roomId, booking.id)
+                                                    .onFailure().invoke(e -> LOG.errorf("gRPC cancelation failed: %s", e.getMessage()))
+                                                    .replaceWith(Uni.createFrom().failure(th))
+                                                    .onItem().transformToUni(ignored -> Uni.createFrom().failure(th));
+                                        });
                             });
                 })
                 .onItem().invoke(persistedBooking ->
-                        LOG.infof("Booking criado com sucesso. ID=%s", persistedBooking.id))
+                        LOG.infof("Booking successfully created. ID=%s", persistedBooking.id))
                 .onFailure().invoke(th ->
-                        LOG.errorf("Falha ao criar booking: %s", th.getMessage()));
+                        LOG.errorf("Failed to create booking: %s", th.getMessage()));
     }
 
     /**
-     * Cancela uma reserva por meio de gRPC.
+     * Makes a gRPC call to reserve a flight seat.
+     * @param booking
+     * @return Uni<ReserveSeatResponse>
+     */
+    private Uni<ReserveSeatResponse> reserveSeatOnFlight(Booking booking) {
+        // Prepare the request to reserve a seat
+        ReserveSeatRequest request = ReserveSeatRequest.newBuilder()
+                .setFlightId(booking.flightId.toString())
+                .setSeatNumber(booking.seatNumber)
+                .setUserId(booking.userId.toString())
+                .build();
+
+        LOG.infof("Reserving seat: %s", request);
+
+        // Call the flight service gRPC method to reserve a seat
+        return flightServiceClient.reserveSeat(request);
+    }
+
+    /**
+     * Cancels a reservation via gRPC.
      * @param roomId
      * @param bookingId
      * @return Uni<CancelReservationResponse>
@@ -93,7 +123,7 @@ public class BookingService {
     }
 
     /**
-     * Persiste uma reserva no banco de dados.
+     * Persists a booking in the database.
      * @param booking
      * @return Uni<Booking>
      */
@@ -106,14 +136,14 @@ public class BookingService {
     }
 
     /**
-     * Converte um objeto LocalDate para Timestamp.
+     * Converts a LocalDate to a Timestamp.
      * @param date
      * @return Timestamp
      */
     private com.google.protobuf.Timestamp convertToTimestamp(java.time.LocalDate date) {
         if (date == null) {
-            LOG.error("Data fornecida é nula!");
-            throw new IllegalArgumentException("Data fornecida é nula!");
+            LOG.error("Provided date is null!");
+            throw new IllegalArgumentException("Provided date is null!");
         }
         return com.google.protobuf.Timestamp.newBuilder()
                 .setSeconds(date.atStartOfDay(ZoneOffset.UTC).toEpochSecond())
@@ -134,12 +164,12 @@ public class BookingService {
                     existingBooking.updateFrom(updatedReservation);
                     return bookingRepository.persist(existingBooking);
                 })
-                .onItem().ifNull().failWith(new RuntimeException("Reserva não encontrada com ID: " + id))
+                .onItem().ifNull().failWith(new RuntimeException("Booking not found with ID: " + id))
         );
     }
 
     /**
-     * Deleta uma reserva de hotel por meio de gRPC e deleta o booking do banco de dados.
+     * Deletes a hotel reservation via gRPC and deletes the booking from the database.
      * @param id
      * @return Uni<Void>
      */

@@ -23,6 +23,9 @@ public class FlightSeat extends PanacheEntityBase {
     @JoinColumn(name = "flight_id", nullable = false)
     public Flight flight;
 
+    @Column(name = "user_id", columnDefinition = "UUID")
+    public UUID userId;
+
     @Column(name = "seat_number", nullable = false, length = 10)
     public String seatNumber;
 

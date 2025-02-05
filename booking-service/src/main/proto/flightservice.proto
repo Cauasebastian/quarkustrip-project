@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.sebastianDev";
+option java_outer_classname = "FlightGrpcProto";
+
+package flightservice;
+
+import "google/protobuf/timestamp.proto";
+
+// Service for reserving a flight seat
+service FlightService {
+  // Reserve a seat for the user
+  rpc reserveSeat(ReserveSeatRequest) returns (ReserveSeatResponse);
+}
+
+message ReserveSeatRequest {
+  string flight_id = 1;
+  string seat_number = 2;
+  string user_id = 3;
+}
+
+message ReserveSeatResponse {
+  bool success = 1;
+  string message = 2;
+}
