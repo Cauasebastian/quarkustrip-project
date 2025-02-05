@@ -6,8 +6,10 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.sebastianDev.dto.ReservationRequest;
-import org.sebastianDev.service.ReservationService;
 import org.jboss.logging.Logger;
+import org.sebastianDev.service.ReservationService;
+
+import java.util.UUID;
 
 @Path("/reservations")
 @Produces(MediaType.APPLICATION_JSON)
@@ -52,5 +54,20 @@ public class ReservationController {
                             .entity("An error occurred while processing your reservation.")
                             .build();
                 });
+    }
+    // Endpoint para obter todas as reservas
+    @GET
+    public Uni<Response> getAllReservations() {
+        return reservationService.getAllReservations()
+                .onItem().transform(reservations -> Response.ok(reservations).build());
+    }
+
+    // Endpoint para obter uma reserva específica pelo ID
+    @GET
+    @Path("/{id}")
+    public Uni<Response> getReservationById(@PathParam("id") UUID id) {
+        return reservationService.getReservationById(id)
+                .onItem().ifNotNull().transform(reservation -> Response.ok(reservation).build())
+                .onItem().ifNull().continueWith(Response.status(Response.Status.NOT_FOUND).build());
     }
 }
