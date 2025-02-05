@@ -10,8 +10,6 @@ import org.sebastianDev.model.FlightSeat;
 import org.sebastianDev.repository.FlightReservationRepository;
 import org.sebastianDev.repository.FlightSeatRepository;
 
-import java.util.UUID;
-
 @ApplicationScoped
 public class ReservationService {
 
@@ -34,14 +32,10 @@ public class ReservationService {
                             .onItem().transformToUni(updatedSeat -> {
                                 FlightReservation reservation = new FlightReservation();
                                 reservation.seat = updatedSeat;
-                                reservation.userId = UUID.fromString(request.userId);
-                                reservation.bookingId = UUID.fromString(generateBookingId());
+                                reservation.userId = request.userId;
+                                reservation.bookingId = request.bookingId;  // Usando o bookingId do ReservationRequest
                                 return reservationRepository.persist(reservation);
                             });
                 });
-    }
-
-    private String generateBookingId() {
-        return "BK-" + System.currentTimeMillis();
     }
 }

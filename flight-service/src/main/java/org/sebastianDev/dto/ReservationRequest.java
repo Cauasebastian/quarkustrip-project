@@ -1,7 +1,10 @@
 package org.sebastianDev.dto;
 
+import java.util.UUID;
+
 public class ReservationRequest {
-    public Long flightId;
+    public UUID flightId;
     public String seatNumber;
-    public String userId;
+    public UUID userId;
+    public UUID bookingId;  // Novo campo: bookingId
 }
