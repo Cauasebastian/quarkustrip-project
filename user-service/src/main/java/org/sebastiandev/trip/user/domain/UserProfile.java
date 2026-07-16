@@ -1,0 +1,3 @@
+package org.sebastiandev.trip.user.domain;
+import jakarta.persistence.*; import java.time.OffsetDateTime; import java.util.UUID;
+@Entity @Table(name="user_profiles") public class UserProfile{@Id public UUID id;@Column(nullable=false,unique=true)public String subject;@Column(nullable=false)public String email;@Column(name="first_name")public String firstName;@Column(name="last_name")public String lastName;@Column(nullable=false,columnDefinition="jsonb")public String preferences;@Column(name="created_at",nullable=false)public OffsetDateTime createdAt;@Column(name="updated_at",nullable=false)public OffsetDateTime updatedAt;@Version public long version;}

@@ -1,0 +1,4 @@
+CREATE TABLE payments(id UUID PRIMARY KEY,booking_id UUID NOT NULL UNIQUE,user_id UUID NOT NULL,amount_minor BIGINT NOT NULL CHECK(amount_minor>=0),currency CHAR(3) NOT NULL,payment_method_ref VARCHAR(255) NOT NULL,status VARCHAR(24) NOT NULL,transaction_id VARCHAR(255),failure_reason VARCHAR(255),created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,version BIGINT NOT NULL DEFAULT 0);
+CREATE TABLE outbox_events(id UUID PRIMARY KEY,topic VARCHAR(255) NOT NULL,aggregate_id UUID NOT NULL,payload JSONB NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL,published_at TIMESTAMPTZ);
+CREATE INDEX idx_payment_outbox_pending ON outbox_events(created_at) WHERE published_at IS NULL;
+CREATE TABLE inbox_events(event_id UUID PRIMARY KEY,type VARCHAR(255) NOT NULL,processed_at TIMESTAMPTZ NOT NULL);

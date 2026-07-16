@@ -1,0 +1,2 @@
+package org.sebastiandev.trip.notification.repository; import io.quarkus.mongodb.panache.reactive.ReactivePanacheMongoRepositoryBase; import jakarta.enterprise.context.ApplicationScoped; import java.util.UUID; import org.sebastiandev.trip.notification.domain.ProcessedEvent;
+@ApplicationScoped public class ProcessedEventRepository implements ReactivePanacheMongoRepositoryBase<ProcessedEvent,UUID>{}
