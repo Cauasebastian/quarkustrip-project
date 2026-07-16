@@ -1,0 +1,39 @@
+{
+  "realm": "trip",
+  "enabled": true,
+  "registrationAllowed": false,
+  "roles": { "realm": [ { "name": "USER" }, { "name": "ADMIN" } ] },
+  "clients": [
+    {
+      "clientId": "trip-gateway",
+      "name": "Trip Gateway",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "rootUrl": "http://localhost:3000",
+      "baseUrl": "http://localhost:3000",
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*",
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "demo",
+      "enabled": true,
+      "email": "demo@trip.local",
+      "credentials": [{ "type": "password", "value": "demo", "temporary": false }],
+      "realmRoles": ["USER"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@trip.local",
+      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
+      "realmRoles": ["USER", "ADMIN"]
+    }
+  ]
+}

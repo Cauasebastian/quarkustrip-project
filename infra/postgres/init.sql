@@ -1,0 +1,14 @@
+CREATE ROLE booking LOGIN PASSWORD 'booking';
+CREATE ROLE flight LOGIN PASSWORD 'flight';
+CREATE ROLE hotel LOGIN PASSWORD 'hotel';
+CREATE ROLE transport LOGIN PASSWORD 'transport';
+CREATE ROLE payment LOGIN PASSWORD 'payment';
+CREATE ROLE users LOGIN PASSWORD 'users';
+CREATE ROLE keycloak LOGIN PASSWORD 'keycloak';
+CREATE DATABASE booking OWNER booking;
+CREATE DATABASE flight OWNER flight;
+CREATE DATABASE hotel OWNER hotel;
+CREATE DATABASE transport OWNER transport;
+CREATE DATABASE payment OWNER payment;
+CREATE DATABASE users OWNER users;
+CREATE DATABASE keycloak OWNER keycloak;

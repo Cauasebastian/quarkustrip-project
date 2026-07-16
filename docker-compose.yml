@@ -1,46 +1,257 @@
-version: '3.8'
+name: quarkus-trip
+
+x-app-common: &app-common
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    kafka:
+      condition: service_healthy
+    otel-collector:
+      condition: service_started
+  environment: &app-environment
+    KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    JSON_LOGS: "true"
+    QUARKUS_HTTP_PORT: 8080
 
 services:
-  postgres-hotel:
-    image: postgres:15
-    container_name: postgres_hotel
-    ports:
-      - "5432:5432" # Mapeamento da porta
+  postgres:
+    image: postgres:16.8-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: hotel_db
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports: ["5432:5432"]
     volumes:
-      - postgres_hotel_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-trip.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  postgres-booking:
-    image: postgres:15
-    container_name: postgres_booking
-    ports:
-      - "5433:5432" # Mapeamento da porta
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: booking_db
+  mongodb:
+    image: mongo:7.0.17
+    ports: ["27017:27017"]
     volumes:
-      - postgres_booking_data:/var/lib/postgresql/data
+      - mongo_data:/data/db
+      - ./infra/mongo/init.js:/docker-entrypoint-initdb.d/01-notifications.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  postgres-flight:
-    image: postgres:15
-    container_name: postgres_flight
-    ports:
-      - "5434:5432" # Mapeamento da porta
+  redis:
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.9.1
+    ports: ["9092:9092"]
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: flight_db
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:29092,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes: ["kafka_data:/var/lib/kafka/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.4
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports: ["8180:8080", "9000:9000"]
     volumes:
-      - postgres_flight_data:/var/lib/postgresql/data
+      - ./infra/keycloak/trip-realm.json:/opt/keycloak/data/import/trip-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.24.0
+    ports: ["1025:1025", "8025:8025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  jaeger:
+    image: jaegertracing/jaeger:2.3.0
+    ports: ["16686:16686"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "/go/bin/jaeger", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otel/collector.yaml:/etc/otelcol/config.yaml:ro
+    ports: ["4317:4317", "4318:4318"]
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  booking-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: booking-service } }
+    environment:
+      <<: *app-environment
+      BOOKING_JDBC_URL: jdbc:postgresql://postgres:5432/booking
+      BOOKING_REACTIVE_URL: postgresql://postgres:5432/booking
+    healthcheck: &app-health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/q/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  flight-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: flight-service } }
+    environment:
+      <<: *app-environment
+      FLIGHT_JDBC_URL: jdbc:postgresql://postgres:5432/flight
+      FLIGHT_REACTIVE_URL: postgresql://postgres:5432/flight
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+    healthcheck: *app-health
+
+  hotel-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: hotel-service } }
+    environment:
+      <<: *app-environment
+      HOTEL_JDBC_URL: jdbc:postgresql://postgres:5432/hotel
+      HOTEL_REACTIVE_URL: postgresql://postgres:5432/hotel
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+    healthcheck: *app-health
+
+  transport-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: transport-service } }
+    environment:
+      <<: *app-environment
+      TRANSPORT_JDBC_URL: jdbc:postgresql://postgres:5432/transport
+      TRANSPORT_REACTIVE_URL: postgresql://postgres:5432/transport
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
+    healthcheck: *app-health
+
+  payment-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: payment-service } }
+    environment:
+      <<: *app-environment
+      PAYMENT_JDBC_URL: jdbc:postgresql://postgres:5432/payment
+      PAYMENT_REACTIVE_URL: postgresql://postgres:5432/payment
+    healthcheck: *app-health
+
+  user-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: user-service } }
+    environment:
+      <<: *app-environment
+      USER_JDBC_URL: jdbc:postgresql://postgres:5432/users
+      USER_REACTIVE_URL: postgresql://postgres:5432/users
+    healthcheck: *app-health
+
+  notification-service:
+    <<: *app-common
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: notification-service } }
+    environment:
+      <<: *app-environment
+      MONGODB_URI: mongodb://mongodb:27017
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+    depends_on:
+      kafka: { condition: service_healthy }
+      mongodb: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    healthcheck: *app-health
+
+  api-gateway-service:
+    build: { context: ., dockerfile: Dockerfile, args: { MODULE: api-gateway-service } }
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    environment:
+      OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/trip
+      QUARKUS_OIDC_TOKEN_ISSUER: http://localhost:8180/realms/trip
+      REDIS_URL: redis://redis:6379
+      BOOKING_GRPC_HOST: booking-service
+      FLIGHT_GRPC_HOST: flight-service
+      HOTEL_GRPC_HOST: hotel-service
+      TRANSPORT_GRPC_HOST: transport-service
+      USER_GRPC_HOST: user-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      keycloak: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      booking-service: { condition: service_healthy }
+      flight-service: { condition: service_healthy }
+      hotel-service: { condition: service_healthy }
+      transport-service: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+    healthcheck: *app-health
+
+  trip-ui:
+    build:
+      context: ./trip-ui
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+        VITE_KEYCLOAK_URL: http://localhost:8180
+        VITE_KEYCLOAK_REALM: trip
+        VITE_KEYCLOAK_CLIENT_ID: trip-gateway
+        VITE_SHOW_DEV_CREDENTIALS: "true"
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    depends_on:
+      api-gateway-service: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
 
 volumes:
-  postgres_hotel_data:
-    driver: local
-  postgres_booking_data:
-    driver: local
-  postgres_flight_data:
-    driver: local
+  postgres_data: {}
+  mongo_data: {}
+  redis_data: {}
+  kafka_data: {}
