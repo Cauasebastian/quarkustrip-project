@@ -19,6 +19,7 @@
         <module>payment-service</module>
         <module>notification-service</module>
         <module>user-service</module>
+        <module>trip-ui</module>
     </modules>
 
     <properties>
@@ -31,6 +32,7 @@
         <compiler-plugin.version>3.14.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.3</surefire-plugin.version>
         <skipITs>true</skipITs>
+        <skip.frontend>false</skip.frontend>
     </properties>
 
     <dependencyManagement>

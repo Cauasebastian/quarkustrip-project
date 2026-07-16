@@ -44,3 +44,11 @@ nb-configuration.xml
 # TLS Certificates
 .certs/
 /.idea
+
+# Frontend
+node_modules/
+/trip-ui/node/
+dist/
+playwright-report/
+test-results/
+*.tsbuildinfo
