@@ -1,0 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE TABLE transport_offers(id UUID PRIMARY KEY,transport_type VARCHAR(64) NOT NULL,provider_name VARCHAR(255) NOT NULL,vehicle_details JSONB NOT NULL,price_minor BIGINT NOT NULL CHECK(price_minor>=0),currency CHAR(3) NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,version BIGINT NOT NULL DEFAULT 0);
+CREATE TABLE transport_reservations(id UUID PRIMARY KEY,booking_id UUID NOT NULL,booking_item_id UUID NOT NULL UNIQUE,user_id UUID NOT NULL,offer_id UUID NOT NULL REFERENCES transport_offers(id),starts_at TIMESTAMPTZ NOT NULL,ends_at TIMESTAMPTZ NOT NULL,status VARCHAR(16) NOT NULL,amount_minor BIGINT NOT NULL,currency CHAR(3) NOT NULL,hold_until TIMESTAMPTZ NOT NULL,created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,version BIGINT NOT NULL DEFAULT 0,CHECK(ends_at>starts_at));
+ALTER TABLE transport_reservations ADD CONSTRAINT no_overlapping_active_transport_reservations EXCLUDE USING gist(offer_id WITH =,tstzrange(starts_at,ends_at,'[)') WITH &&) WHERE(status IN('HELD','CONFIRMED'));
+CREATE TABLE outbox_events(id UUID PRIMARY KEY,topic VARCHAR(255) NOT NULL,aggregate_id UUID NOT NULL,payload JSONB NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL,published_at TIMESTAMPTZ);
+CREATE INDEX idx_transport_outbox_pending ON outbox_events(created_at) WHERE published_at IS NULL;
+CREATE TABLE inbox_events(event_id UUID PRIMARY KEY,type VARCHAR(255) NOT NULL,processed_at TIMESTAMPTZ NOT NULL);
