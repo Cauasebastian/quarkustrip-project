@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trip.local/schema/payment-requested-v1.schema.json",
+  "type": "object",
+  "required": ["bookingId", "userId", "amountMinor", "currency", "paymentMethodRef"],
+  "properties": {
+    "bookingId": { "type": "string", "format": "uuid" },
+    "userId": { "type": "string", "format": "uuid" },
+    "amountMinor": { "type": "integer", "minimum": 0 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "paymentMethodRef": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

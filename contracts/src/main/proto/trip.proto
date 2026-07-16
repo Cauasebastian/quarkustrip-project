@@ -1,0 +1,231 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.sebastiandev.trip.contracts.grpc";
+option java_outer_classname = "TripContractsProto";
+
+package trip.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message LocalDateValue {
+  int32 year = 1;
+  int32 month = 2;
+  int32 day = 3;
+}
+
+message Money {
+  string currency = 1;
+  int64 amount_minor = 2;
+}
+
+enum BookingStatus {
+  BOOKING_STATUS_UNSPECIFIED = 0;
+  RESERVING = 1;
+  PAYMENT_PENDING = 2;
+  CONFIRMING = 3;
+  CONFIRMED = 4;
+  COMPENSATING = 5;
+  CANCELLED = 6;
+  FAILED = 7;
+  MANUAL_REVIEW = 8;
+}
+
+enum BookingItemStatus {
+  BOOKING_ITEM_STATUS_UNSPECIFIED = 0;
+  PENDING = 1;
+  HELD = 2;
+  ITEM_CONFIRMED = 3;
+  ITEM_FAILED = 4;
+  ITEM_CANCELLED = 5;
+}
+
+enum BookingItemType {
+  BOOKING_ITEM_TYPE_UNSPECIFIED = 0;
+  FLIGHT = 1;
+  HOTEL = 2;
+  TRANSPORT = 3;
+}
+
+message FlightItemRequest {
+  string flight_id = 1;
+  string seat_number = 2;
+}
+
+message HotelItemRequest {
+  string room_id = 1;
+  LocalDateValue check_in = 2;
+  LocalDateValue check_out = 3;
+}
+
+message TransportItemRequest {
+  string transport_id = 1;
+  google.protobuf.Timestamp starts_at = 2;
+  google.protobuf.Timestamp ends_at = 3;
+}
+
+message BookingItemRequest {
+  oneof item {
+    FlightItemRequest flight = 1;
+    HotelItemRequest hotel = 2;
+    TransportItemRequest transport = 3;
+  }
+}
+
+message CreateBookingRequest {
+  string user_id = 1;
+  string idempotency_key = 2;
+  string currency = 3;
+  string payment_method_ref = 4;
+  repeated BookingItemRequest items = 5;
+}
+
+message CreateBookingResponse {
+  string booking_id = 1;
+  BookingStatus status = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message GetBookingRequest {
+  string booking_id = 1;
+  string requester_user_id = 2;
+  bool admin = 3;
+}
+
+message BookingItemView {
+  string id = 1;
+  BookingItemType type = 2;
+  string resource_id = 3;
+  BookingItemStatus status = 4;
+  string external_reservation_id = 5;
+  Money price = 6;
+  string failure_reason = 7;
+}
+
+message BookingView {
+  string id = 1;
+  string user_id = 2;
+  BookingStatus status = 3;
+  Money total = 4;
+  repeated BookingItemView items = 5;
+  string failure_code = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message GetBookingResponse { BookingView booking = 1; }
+
+message CancelBookingRequest {
+  string booking_id = 1;
+  string requester_user_id = 2;
+  bool admin = 3;
+  string reason = 4;
+}
+
+message CancelBookingResponse {
+  string booking_id = 1;
+  BookingStatus status = 2;
+}
+
+message ListUserBookingsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 size = 3;
+}
+
+message ListUserBookingsResponse {
+  repeated BookingView bookings = 1;
+  int32 page = 2;
+  int32 size = 3;
+  int64 total_elements = 4;
+}
+
+service BookingCommandService {
+  rpc CreateBooking(CreateBookingRequest) returns (CreateBookingResponse);
+  rpc GetBooking(GetBookingRequest) returns (GetBookingResponse);
+  rpc CancelBooking(CancelBookingRequest) returns (CancelBookingResponse);
+  rpc ListUserBookings(ListUserBookingsRequest) returns (ListUserBookingsResponse);
+}
+
+message SearchFlightsRequest { string origin = 1; string destination = 2; google.protobuf.Timestamp departs_after = 3; }
+message GetFlightRequest { string flight_id = 1; }
+message FlightView {
+  string id = 1;
+  string flight_number = 2;
+  string origin = 3;
+  string destination = 4;
+  google.protobuf.Timestamp departure_time = 5;
+  google.protobuf.Timestamp arrival_time = 6;
+  Money seat_price = 7;
+  repeated string available_seats = 8;
+}
+message SearchFlightsResponse { repeated FlightView flights = 1; }
+message GetFlightResponse { FlightView flight = 1; }
+message CreateFlightRequest {
+  string flight_number = 1;
+  string origin = 2;
+  string destination = 3;
+  google.protobuf.Timestamp departure_time = 4;
+  google.protobuf.Timestamp arrival_time = 5;
+  int32 total_seats = 6;
+  Money seat_price = 7;
+}
+message CreateFlightResponse { FlightView flight = 1; }
+service FlightQueryService {
+  rpc SearchFlights(SearchFlightsRequest) returns (SearchFlightsResponse);
+  rpc GetFlight(GetFlightRequest) returns (GetFlightResponse);
+  rpc CreateFlight(CreateFlightRequest) returns (CreateFlightResponse);
+}
+
+message SearchHotelsRequest { string city = 1; string country = 2; LocalDateValue check_in = 3; LocalDateValue check_out = 4; }
+message HotelView { string id = 1; string name = 2; string address = 3; string city = 4; string country = 5; int32 rating = 6; }
+message RoomView { string id = 1; string hotel_id = 2; string room_number = 3; string room_type = 4; Money nightly_price = 5; bool available = 6; }
+message SearchHotelsResponse { repeated HotelView hotels = 1; }
+message GetRoomRequest { string room_id = 1; LocalDateValue check_in = 2; LocalDateValue check_out = 3; }
+message GetRoomResponse { RoomView room = 1; }
+message ListRoomsRequest { string hotel_id = 1; LocalDateValue check_in = 2; LocalDateValue check_out = 3; }
+message ListRoomsResponse { repeated RoomView rooms = 1; }
+message CreateHotelRequest { string name = 1; string address = 2; string city = 3; string country = 4; int32 rating = 5; }
+message CreateHotelResponse { HotelView hotel = 1; }
+message CreateRoomRequest { string hotel_id = 1; string room_number = 2; string room_type = 3; Money nightly_price = 4; }
+message CreateRoomResponse { RoomView room = 1; }
+service HotelQueryService {
+  rpc SearchHotels(SearchHotelsRequest) returns (SearchHotelsResponse);
+  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse);
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+  rpc CreateHotel(CreateHotelRequest) returns (CreateHotelResponse);
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+}
+
+message SearchTransportsRequest { string transport_type = 1; google.protobuf.Timestamp starts_at = 2; google.protobuf.Timestamp ends_at = 3; }
+message TransportView { string id = 1; string transport_type = 2; string provider_name = 3; string vehicle_details_json = 4; Money price = 5; bool available = 6; }
+message SearchTransportsResponse { repeated TransportView transports = 1; }
+message GetTransportRequest { string transport_id = 1; google.protobuf.Timestamp starts_at = 2; google.protobuf.Timestamp ends_at = 3; }
+message GetTransportResponse { TransportView transport = 1; }
+message CreateTransportRequest { string transport_type = 1; string provider_name = 2; string vehicle_details_json = 3; Money price = 4; }
+message CreateTransportResponse { TransportView transport = 1; }
+service TransportQueryService {
+  rpc SearchTransports(SearchTransportsRequest) returns (SearchTransportsResponse);
+  rpc GetTransport(GetTransportRequest) returns (GetTransportResponse);
+  rpc CreateTransport(CreateTransportRequest) returns (CreateTransportResponse);
+}
+
+message GetUserProfileRequest { string subject = 1; }
+message UpsertUserProfileRequest { string subject = 1; string email = 2; string first_name = 3; string last_name = 4; string preferences_json = 5; }
+message UserProfileView { string id = 1; string subject = 2; string email = 3; string first_name = 4; string last_name = 5; string preferences_json = 6; }
+message GetUserProfileResponse { UserProfileView profile = 1; }
+message UpsertUserProfileResponse { UserProfileView profile = 1; }
+service UserProfileService {
+  rpc GetProfile(GetUserProfileRequest) returns (GetUserProfileResponse);
+  rpc UpsertProfile(UpsertUserProfileRequest) returns (UpsertUserProfileResponse);
+}
+
+message GetPaymentRequest { string booking_id = 1; }
+message PaymentView { string id = 1; string booking_id = 2; string status = 3; Money amount = 4; string transaction_id = 5; }
+message GetPaymentResponse { PaymentView payment = 1; }
+service PaymentQueryService { rpc GetPayment(GetPaymentRequest) returns (GetPaymentResponse); }
+
+message GetNotificationRequest { string notification_id = 1; string user_id = 2; bool admin = 3; }
+message NotificationView { string id = 1; string user_id = 2; string type = 3; string status = 4; string payload_json = 5; google.protobuf.Timestamp created_at = 6; }
+message GetNotificationResponse { NotificationView notification = 1; }
+service NotificationQueryService { rpc GetNotification(GetNotificationRequest) returns (GetNotificationResponse); }

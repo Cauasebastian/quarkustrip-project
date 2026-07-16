@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trip.local/schema/booking-terminal-v1.schema.json",
+  "type": "object",
+  "required": ["bookingId", "userId", "status", "amountMinor", "currency"],
+  "properties": {
+    "bookingId": { "type": "string", "format": "uuid" },
+    "userId": { "type": "string", "format": "uuid" },
+    "status": { "enum": ["CONFIRMED", "CANCELLED", "FAILED", "MANUAL_REVIEW"] },
+    "amountMinor": { "type": "integer", "minimum": 0 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "reason": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

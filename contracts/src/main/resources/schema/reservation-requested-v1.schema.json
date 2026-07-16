@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quarkustrip.local/schema/reservation-requested-v1.schema.json",
+  "title": "Reservation requested payload v1",
+  "type": "object",
+  "required": ["bookingId", "bookingItemId", "userId", "resourceId", "attributes", "currency", "holdUntil"],
+  "properties": {
+    "bookingId": {"type": "string", "format": "uuid"},
+    "bookingItemId": {"type": "string", "format": "uuid"},
+    "userId": {"type": "string", "format": "uuid"},
+    "resourceId": {"type": "string", "format": "uuid"},
+    "attributes": {"type": "object", "additionalProperties": {"type": "string"}},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "holdUntil": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quarkustrip.local/schema/event-envelope-v1.schema.json",
+  "title": "Trip event envelope v1",
+  "type": "object",
+  "required": ["eventId", "type", "schemaVersion", "occurredAt", "correlationId", "producer", "payload"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"},
+    "type": {"type": "string", "minLength": 1},
+    "schemaVersion": {"const": 1},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "correlationId": {"type": "string", "format": "uuid"},
+    "causationId": {"type": ["string", "null"], "format": "uuid"},
+    "producer": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

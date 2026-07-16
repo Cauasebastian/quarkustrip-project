@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trip.local/schema/reservation-outcome-v1.schema.json",
+  "type": "object",
+  "required": ["bookingId", "bookingItemId", "amountMinor", "currency", "status"],
+  "properties": {
+    "bookingId": { "type": "string", "format": "uuid" },
+    "bookingItemId": { "type": "string", "format": "uuid" },
+    "reservationId": { "type": ["string", "null"], "format": "uuid" },
+    "amountMinor": { "type": "integer", "minimum": 0 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "status": { "enum": ["HELD", "CONFIRMED", "CANCELLED", "FAILED"] },
+    "reason": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}
