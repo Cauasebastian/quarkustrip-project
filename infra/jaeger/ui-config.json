@@ -1,0 +1,19 @@
+{
+  "dependencies": {
+    "dagMaxNumServices": 100,
+    "menuEnabled": true
+  },
+  "monitor": {
+    "menuEnabled": false
+  },
+  "criticalPathEnabled": true,
+  "topTagPrefixes": [
+    "booking.",
+    "event.",
+    "saga.",
+    "messaging.",
+    "payment.",
+    "reservation.",
+    "compensation."
+  ]
+}

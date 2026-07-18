@@ -55,6 +55,24 @@ Endereços locais:
 - Mailpit: `http://localhost:8025`
 - Jaeger: `http://localhost:16686`
 
+## Observabilidade distribuída
+
+Os serviços enviam traces OTLP diretamente ao Jaeger. A stack local mantém até 10.000 traces em memória e limita o contêiner a 512 MB; os dados são descartados quando o Jaeger reinicia.
+
+Na interface do Jaeger:
+
+- `Search` mostra traces completos de REST, gRPC, outbox, Kafka, inbox e SQL.
+- `Dependencies` calcula o grafo entre serviços a partir dos traces mantidos em memória.
+- Os atributos `booking.id`, `event.id`, `saga.state`, `payment.operation` e `compensation.reason` permitem filtrar uma execução específica.
+
+Para conferir se a plataforma está sendo executada pelo Docker antes de iniciar um serviço local:
+
+```bash
+docker compose ps
+```
+
+Não execute o mesmo microsserviço simultaneamente no host e no Compose, pois ambos consumiriam o mesmo grupo Kafka. Para desenvolver apenas um serviço no host, pare primeiro o correspondente no Docker com `docker compose stop <serviço>`. PostgreSQL e MongoDB instalados no Windows não são usados pelos contêineres; dentro do Compose, os serviços se conectam pelos nomes `postgres` e `mongodb`.
+
 Usuários locais:
 
 - `demo/demo`: role `USER`.

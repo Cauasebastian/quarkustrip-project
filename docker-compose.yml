@@ -7,11 +7,15 @@ x-app-common: &app-common
       condition: service_healthy
     kafka:
       condition: service_healthy
-    otel-collector:
-      condition: service_started
+    jaeger:
+      condition: service_healthy
   environment: &app-environment
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+    QUARKUS_OTEL_TRACES_SAMPLER: parentbased_always_on
+    QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
+    QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"
+    QUARKUS_OTEL_INSTRUMENT_REST: "true"
     JSON_LOGS: "true"
     QUARKUS_HTTP_PORT: 8080
 
@@ -110,25 +114,21 @@ services:
       retries: 20
 
   jaeger:
-    image: jaegertracing/jaeger:2.3.0
-    ports: ["16686:16686"]
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
+    image: jaegertracing/jaeger:2.19.0
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    mem_limit: 512m
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./infra/jaeger/jaeger.yaml:/etc/jaeger/config.yaml:ro
+      - ./infra/jaeger/ui-config.json:/etc/jaeger/ui-config.json:ro
     healthcheck:
-      test: ["CMD", "/go/bin/jaeger", "status"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:13133/status"]
       interval: 10s
       timeout: 5s
       retries: 20
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.120.0
-    command: ["--config=/etc/otelcol/config.yaml"]
-    volumes:
-      - ./infra/otel/collector.yaml:/etc/otelcol/config.yaml:ro
-    ports: ["4317:4317", "4318:4318"]
-    depends_on:
-      jaeger:
-        condition: service_started
 
   booking-service:
     <<: *app-common
@@ -203,7 +203,7 @@ services:
       kafka: { condition: service_healthy }
       mongodb: { condition: service_healthy }
       mailpit: { condition: service_healthy }
-      otel-collector: { condition: service_started }
+      jaeger: { condition: service_healthy }
     healthcheck: *app-health
 
   api-gateway-service:
@@ -219,7 +219,11 @@ services:
       HOTEL_GRPC_HOST: hotel-service
       TRANSPORT_GRPC_HOST: transport-service
       USER_GRPC_HOST: user-service
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      QUARKUS_OTEL_TRACES_SAMPLER: parentbased_always_on
+      QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
+      QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"
+      QUARKUS_OTEL_INSTRUMENT_REST: "true"
     depends_on:
       keycloak: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -228,6 +232,7 @@ services:
       hotel-service: { condition: service_healthy }
       transport-service: { condition: service_healthy }
       user-service: { condition: service_healthy }
+      jaeger: { condition: service_healthy }
     healthcheck: *app-health
 
   trip-ui:
