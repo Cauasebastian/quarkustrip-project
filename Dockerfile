@@ -1,8 +1,15 @@
+# syntax=docker/dockerfile:1.7
+
 FROM maven:3.9.11-eclipse-temurin-21 AS build
 WORKDIR /workspace
 ARG MODULE
+ARG MAVEN_LOCK_TIMEOUT_SECONDS=300
 COPY . .
-RUN mvn -pl ${MODULE} -am -DskipTests package
+RUN --mount=type=cache,id=trip-maven-repository,target=/root/.m2/repository,sharing=locked \
+    mvn --batch-mode --no-transfer-progress \
+        -Daether.syncContext.named.time=${MAVEN_LOCK_TIMEOUT_SECONDS} \
+        -Daether.syncContext.named.time.unit=SECONDS \
+        -pl "${MODULE}" -am -DskipTests package
 
 FROM eclipse-temurin:21-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
