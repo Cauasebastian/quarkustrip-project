@@ -9,10 +9,13 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapSetter;
+import io.smallrye.mutiny.Uni;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class TraceContextSupport {
@@ -67,6 +70,15 @@ public final class TraceContextSupport {
         return builder.startSpan();
     }
 
+    public static Span startLinkedSpan(String name, SpanKind kind, Context parent, Context linkedContext) {
+        SpanBuilder builder = GlobalOpenTelemetry.getTracer("org.sebastiandev.trip")
+                .spanBuilder(name).setSpanKind(kind).setParent(parent == null ? Context.current() : parent);
+        if (linkedContext != null && Span.fromContext(linkedContext).getSpanContext().isValid()) {
+            builder.addLink(Span.fromContext(linkedContext).getSpanContext());
+        }
+        return builder.startSpan();
+    }
+
     public static OutboxPublishTrace beginOutboxPublish(UUID eventId, UUID bookingId, String destination,
                                                          int attempt, Instant createdAt,
                                                          TraceContextSnapshot snapshot) {
@@ -108,6 +120,23 @@ public final class TraceContextSupport {
         try (Scope ignored = context.makeCurrent()) {
             return action.get();
         }
+    }
+
+    public static <T> Uni<T> traceUni(String name, SpanKind kind, Consumer<Span> attributes,
+                                      Function<Span, Uni<T>> action) {
+        Span span = startSpan(name, kind, Context.current());
+        attributes.accept(span);
+        Uni<T> operation;
+        try {
+            operation = inContext(span, () -> action.apply(span));
+        } catch (RuntimeException exception) {
+            span.end();
+            throw exception;
+        }
+        return operation.onItemOrFailure().invoke((ignored, failure) -> {
+            if (failure != null) fail(span, failure);
+            span.end();
+        });
     }
 
     public static void fail(Span span, Throwable failure) {

@@ -3,6 +3,7 @@ package org.sebastiandev.trip.payment.service;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.LockModeType;
@@ -10,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.function.Function;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
@@ -29,8 +31,12 @@ public class PaymentApplicationService {
     @Inject PaymentProvider provider;
 
     public Uni<Void> charge(EventEnvelope event, EventPayloads.PaymentRequested request) {
-        return process(event, () -> payments.find("bookingId", request.bookingId()).firstResult().chain(existing -> {
-            if (existing != null) return publish(existing, event.eventId());
+        return process(event, () -> tracePayment("payment.charge", "charge", event, span ->
+                payments.find("bookingId", request.bookingId()).firstResult().chain(existing -> {
+            if (existing != null) {
+                span.setAttribute("payment.outcome", existing.status.name());
+                return publish(existing, event.eventId());
+            }
             PaymentProvider.Result result = provider.charge(request.paymentMethodRef(), request.amountMinor(),
                     request.currency());
             OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -46,25 +52,32 @@ public class PaymentApplicationService {
             payment.failureReason = result.reason();
             payment.createdAt = now;
             payment.updatedAt = now;
+            span.setAttribute("payment.outcome", payment.status.name());
             return payments.persist(payment).chain(() -> publish(payment, event.eventId()));
-        }));
+        })));
     }
 
     public Uni<Void> refund(EventEnvelope event, EventPayloads.RefundRequested request) {
-        return process(event, () -> payments.findById(request.paymentId(), LockModeType.PESSIMISTIC_WRITE)
+        return process(event, () -> tracePayment("payment.refund", "refund", event, span ->
+                payments.findById(request.paymentId(), LockModeType.PESSIMISTIC_WRITE)
                 .chain(payment -> {
                     if (payment == null || !payment.bookingId.equals(request.bookingId())) {
+                        span.setAttribute("payment.outcome", "REFUND_FAILED");
                         return outbox.enqueue(TopicNames.PAYMENT_REFUND_FAILED, request.bookingId(), event.eventId(),
                                 new EventPayloads.PaymentOutcome(request.bookingId(), request.paymentId(),
                                         "REFUND_FAILED", "PAYMENT_NOT_FOUND")).replaceWithVoid();
                     }
-                    if (payment.status == Payment.Status.REFUNDED) return publish(payment, event.eventId());
+                    if (payment.status == Payment.Status.REFUNDED) {
+                        span.setAttribute("payment.outcome", "REFUNDED");
+                        return publish(payment, event.eventId());
+                    }
                     PaymentProvider.Result result = provider.refund(payment.transactionId, payment.paymentMethodRef);
                     payment.status = result.successful() ? Payment.Status.REFUNDED : Payment.Status.REFUND_FAILED;
                     payment.failureReason = result.reason();
                     payment.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                    span.setAttribute("payment.outcome", payment.status.name());
                     return publish(payment, event.eventId());
-                }));
+                })));
     }
 
     public Uni<Payment> getByBookingId(UUID bookingId) {
@@ -90,6 +103,15 @@ public class PaymentApplicationService {
                     if (failure != null) TraceContextSupport.fail(span, failure);
                     span.end();
                 });
+    }
+
+    private Uni<Void> tracePayment(String name, String operation, EventEnvelope event,
+                                   Function<Span, Uni<Void>> action) {
+        return TraceContextSupport.traceUni(name, SpanKind.INTERNAL, span -> {
+            span.setAttribute("booking.id", event.correlationId().toString());
+            span.setAttribute("event.id", event.eventId().toString());
+            span.setAttribute("payment.operation", operation);
+        }, action);
     }
 
     private Uni<Void> publish(Payment payment, UUID cause) {

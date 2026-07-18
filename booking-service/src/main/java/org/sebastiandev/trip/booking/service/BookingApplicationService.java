@@ -7,6 +7,8 @@ import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.OffsetDateTime;
@@ -139,8 +141,20 @@ public class BookingApplicationService {
                 throw new IllegalStateException("booking cannot be cancelled in state " + booking.status);
             }
             booking.cancellationRequested = true;
-            return inSagaContext(booking, () -> startCompensation(booking,
-                    reason == null || reason.isBlank() ? "USER_CANCELLED" : reason, null)).replaceWith(booking);
+            String compensationReason = reason == null || reason.isBlank() ? "USER_CANCELLED" : reason;
+            Context sagaContext = TraceContextSupport.restore(
+                    new TraceContextSnapshot(booking.sagaTraceParent, booking.sagaTraceState));
+            Span cancelSpan = TraceContextSupport.startLinkedSpan("saga.cancel.requested", SpanKind.INTERNAL,
+                    Context.current(), sagaContext);
+            cancelSpan.setAttribute("booking.id", booking.id.toString());
+            cancelSpan.setAttribute("compensation.reason", compensationReason);
+            return TraceContextSupport.inContext(sagaContext,
+                            () -> startCompensation(booking, compensationReason, null))
+                    .replaceWith(booking)
+                    .onItemOrFailure().invoke((ignored, failure) -> {
+                        if (failure != null) TraceContextSupport.fail(cancelSpan, failure);
+                        cancelSpan.end();
+                    });
         }));
     }
 
@@ -167,58 +181,75 @@ public class BookingApplicationService {
     }
 
     public Uni<Void> startPayment(Booking booking, UUID causationId) {
-        booking.status = BookingStatus.PAYMENT_PENDING;
-        booking.totalAmountMinor = booking.items.stream().mapToLong(item -> item.amountMinor).sum();
-        booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
-        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        metrics.transition(BookingStatus.PAYMENT_PENDING.name());
-        return outbox.enqueue(TopicNames.PAYMENT_PROCESS_REQUESTED, booking.id, causationId,
-                new EventPayloads.PaymentRequested(booking.id, booking.userId, booking.totalAmountMinor,
-                        booking.currency, booking.paymentMethodRef)).replaceWithVoid();
+        return transition(booking, BookingStatus.PAYMENT_PENDING, ignored -> {
+            booking.totalAmountMinor = booking.items.stream().mapToLong(item -> item.amountMinor).sum();
+            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
+            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+            metrics.transition(BookingStatus.PAYMENT_PENDING.name());
+            return outbox.enqueue(TopicNames.PAYMENT_PROCESS_REQUESTED, booking.id, causationId,
+                    new EventPayloads.PaymentRequested(booking.id, booking.userId, booking.totalAmountMinor,
+                            booking.currency, booking.paymentMethodRef)).replaceWithVoid();
+        });
     }
 
     public Uni<Void> startConfirmation(Booking booking, UUID causationId) {
-        booking.status = BookingStatus.CONFIRMING;
-        booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
-        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        metrics.transition(BookingStatus.CONFIRMING.name());
-        Uni<Void> chain = Uni.createFrom().voidItem();
-        for (BookingItem item : booking.items) {
-            chain = chain.chain(() -> outbox.enqueue(topic(item.type, "confirm"), booking.id, causationId,
-                    new EventPayloads.ReservationAction(booking.id, item.id, item.reservationId)).replaceWithVoid());
-        }
-        return chain;
+        return transition(booking, BookingStatus.CONFIRMING, ignored -> {
+            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
+            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+            metrics.transition(BookingStatus.CONFIRMING.name());
+            Uni<Void> chain = Uni.createFrom().voidItem();
+            for (BookingItem item : booking.items) {
+                chain = chain.chain(() -> outbox.enqueue(topic(item.type, "confirm"), booking.id, causationId,
+                        new EventPayloads.ReservationAction(booking.id, item.id, item.reservationId))
+                        .replaceWithVoid());
+            }
+            return chain;
+        });
     }
 
     public Uni<Void> startCompensation(Booking booking, String reason, UUID causationId) {
-        booking.status = BookingStatus.COMPENSATING;
-        booking.failureCode = reason;
-        booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
-        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        metrics.compensation();
-        Uni<Void> chain = Uni.createFrom().voidItem();
-        for (BookingItem item : booking.items) {
-            if (item.reservationId != null && item.status != BookingItemStatus.CANCELLED) {
-                chain = chain.chain(() -> outbox.enqueue(topic(item.type, "cancel"), booking.id, causationId,
-                        new EventPayloads.ReservationAction(booking.id, item.id, item.reservationId)).replaceWithVoid());
+        BookingStatus previous = booking.status;
+        return TraceContextSupport.traceUni("saga.compensate", SpanKind.INTERNAL, span -> {
+            span.setAttribute("booking.id", booking.id.toString());
+            span.setAttribute("saga.previous_state", previous.name());
+            span.setAttribute("saga.state", BookingStatus.COMPENSATING.name());
+            span.setAttribute("compensation.reason", reason);
+        }, ignored -> {
+            booking.status = BookingStatus.COMPENSATING;
+            booking.failureCode = reason;
+            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
+            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+            metrics.compensation();
+            Uni<Void> chain = Uni.createFrom().voidItem();
+            for (BookingItem item : booking.items) {
+                if (item.reservationId != null && item.status != BookingItemStatus.CANCELLED) {
+                    chain = chain.chain(() -> outbox.enqueue(topic(item.type, "cancel"), booking.id, causationId,
+                            new EventPayloads.ReservationAction(booking.id, item.id, item.reservationId))
+                            .replaceWithVoid());
+                }
             }
-        }
-        if (booking.paymentId != null) {
-            chain = chain.chain(() -> outbox.enqueue(TopicNames.PAYMENT_REFUND_REQUESTED, booking.id, causationId,
-                    new EventPayloads.RefundRequested(booking.id, booking.paymentId, reason)).replaceWithVoid());
-        }
-        return chain.chain(() -> finishCompensationIfPossible(booking, causationId));
+            if (booking.paymentId != null) {
+                chain = chain.chain(() -> outbox.enqueue(TopicNames.PAYMENT_REFUND_REQUESTED, booking.id,
+                        causationId, new EventPayloads.RefundRequested(booking.id, booking.paymentId, reason))
+                        .replaceWithVoid());
+            }
+            return chain.chain(() -> finishCompensationIfPossible(booking, causationId));
+        });
     }
 
     public Uni<Void> finishCompensationIfPossible(Booking booking, UUID causationId) {
         boolean resourcesReleased = booking.items.stream().allMatch(item ->
                 item.status == BookingItemStatus.CANCELLED || item.status == BookingItemStatus.FAILED);
         if (resourcesReleased && booking.paymentId == null) {
-            booking.status = booking.cancellationRequested ? BookingStatus.CANCELLED : BookingStatus.FAILED;
-            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-            metrics.terminal(booking);
-            String topic = booking.status == BookingStatus.CANCELLED ? TopicNames.BOOKING_CANCELLED : TopicNames.BOOKING_FAILED;
-            return outbox.enqueue(topic, booking.id, causationId, terminal(booking)).replaceWithVoid();
+            BookingStatus terminalStatus = booking.cancellationRequested ? BookingStatus.CANCELLED
+                    : BookingStatus.FAILED;
+            return transition(booking, terminalStatus, ignored -> {
+                booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                metrics.terminal(booking);
+                String topic = booking.status == BookingStatus.CANCELLED ? TopicNames.BOOKING_CANCELLED
+                        : TopicNames.BOOKING_FAILED;
+                return outbox.enqueue(topic, booking.id, causationId, terminal(booking)).replaceWithVoid();
+            });
         }
         return Uni.createFrom().voidItem();
     }
@@ -253,11 +284,12 @@ public class BookingApplicationService {
                     if (booking.status != BookingStatus.CONFIRMING) return Uni.createFrom().voidItem();
                     item.status = BookingItemStatus.CONFIRMED;
                     if (booking.allItems(BookingItemStatus.CONFIRMED)) {
-                        booking.status = BookingStatus.CONFIRMED;
-                        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-                        metrics.terminal(booking);
-                        return outbox.enqueue(TopicNames.BOOKING_CONFIRMED, booking.id, envelope.eventId(),
-                                terminal(booking)).replaceWithVoid();
+                        return transition(booking, BookingStatus.CONFIRMED, ignored -> {
+                            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                            metrics.terminal(booking);
+                            return outbox.enqueue(TopicNames.BOOKING_CONFIRMED, booking.id, envelope.eventId(),
+                                    terminal(booking)).replaceWithVoid();
+                        });
                     }
                 }
                 case "CANCELLED" -> {
@@ -331,13 +363,27 @@ public class BookingApplicationService {
                 });
     }
 
-    private Uni<Void> manualReview(Booking booking, String reason, UUID causationId) {
-        booking.status = BookingStatus.MANUAL_REVIEW;
-        booking.failureCode = reason;
-        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        metrics.manualReview();
-        return outbox.enqueue(TopicNames.BOOKING_MANUAL_REVIEW, booking.id, causationId, terminal(booking))
-                .replaceWithVoid();
+    public Uni<Void> manualReview(Booking booking, String reason, UUID causationId) {
+        return transition(booking, BookingStatus.MANUAL_REVIEW, ignored -> {
+            booking.failureCode = reason;
+            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+            metrics.manualReview();
+            return outbox.enqueue(TopicNames.BOOKING_MANUAL_REVIEW, booking.id, causationId, terminal(booking))
+                    .replaceWithVoid();
+        });
+    }
+
+    private Uni<Void> transition(Booking booking, BookingStatus next,
+                                 java.util.function.Function<Span, Uni<Void>> action) {
+        BookingStatus previous = booking.status;
+        return TraceContextSupport.traceUni("saga.transition", SpanKind.INTERNAL, span -> {
+            span.setAttribute("booking.id", booking.id.toString());
+            span.setAttribute("saga.previous_state", previous.name());
+            span.setAttribute("saga.state", next.name());
+        }, span -> {
+            booking.status = next;
+            return action.apply(span);
+        });
     }
 
     public <T> Uni<T> inSagaContext(Booking booking, java.util.function.Supplier<Uni<T>> action) {

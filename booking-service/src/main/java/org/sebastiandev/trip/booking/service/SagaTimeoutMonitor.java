@@ -10,15 +10,12 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.sebastiandev.trip.booking.domain.BookingStatus;
-import org.sebastiandev.trip.booking.messaging.OutboxService;
 import org.sebastiandev.trip.booking.repository.BookingRepository;
-import org.sebastiandev.trip.contracts.event.TopicNames;
 
 @ApplicationScoped
 public class SagaTimeoutMonitor {
     @Inject BookingRepository bookings;
     @Inject BookingApplicationService service;
-    @Inject OutboxService outbox;
 
     @Scheduled(every = "5s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     Uni<Void> expire() {
@@ -38,11 +35,8 @@ public class SagaTimeoutMonitor {
                         || booking.status == BookingStatus.CANCELLED || booking.status == BookingStatus.FAILED
                         || booking.status == BookingStatus.MANUAL_REVIEW) return Uni.createFrom().voidItem();
                 if (booking.status == BookingStatus.COMPENSATING) {
-                    booking.status = BookingStatus.MANUAL_REVIEW;
-                    booking.failureCode = "COMPENSATION_TIMEOUT";
-                    return service.inSagaContext(booking, () -> outbox.enqueue(
-                            TopicNames.BOOKING_MANUAL_REVIEW, booking.id, null,
-                            service.terminal(booking)).replaceWithVoid());
+                    return service.inSagaContext(booking,
+                            () -> service.manualReview(booking, "COMPENSATION_TIMEOUT", null));
                 }
                 return service.inSagaContext(booking, () -> service.startCompensation(booking, "SAGA_TIMEOUT", null));
             })));

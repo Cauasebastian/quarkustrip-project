@@ -3,6 +3,7 @@ package org.sebastiandev.trip.flight.service;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.LockModeType;
@@ -30,12 +31,15 @@ public class FlightApplicationService {
     @Inject OutboxService outbox;
 
     public Uni<Void> reserve(EventEnvelope event, EventPayloads.ReservationRequested request) {
-        return process(event, () -> reservations.find("bookingItemId", request.bookingItemId()).firstResult()
-                .chain(existing -> existing == null ? hold(request, event) : publish(existing, event.eventId())));
+        return process(event, () -> traceReservation("reservation.hold", "hold", event,
+                () -> reservations.find("bookingItemId", request.bookingItemId()).firstResult()
+                        .chain(existing -> existing == null ? hold(request, event)
+                                : publish(existing, event.eventId()))));
     }
 
     public Uni<Void> confirm(EventEnvelope event, EventPayloads.ReservationAction request) {
-        return process(event, () -> reservations.findById(request.reservationId()).chain(reservation -> {
+        return process(event, () -> traceReservation("reservation.confirm", "confirm", event,
+                () -> reservations.findById(request.reservationId()).chain(reservation -> {
             if (reservation == null || !reservation.bookingItemId.equals(request.bookingItemId())) {
                 return outcome(request.bookingId(), request.bookingItemId(), request.reservationId(), 0, "XXX",
                         "FAILED", "RESERVATION_NOT_FOUND", TopicNames.FLIGHT_FAILED, event.eventId());
@@ -57,11 +61,12 @@ public class FlightApplicationService {
                 seat.status = FlightSeat.Status.CONFIRMED;
                 return publish(reservation, event.eventId());
             });
-        }));
+        })));
     }
 
     public Uni<Void> cancel(EventEnvelope event, EventPayloads.ReservationAction request) {
-        return process(event, () -> reservations.findById(request.reservationId()).chain(reservation -> {
+        return process(event, () -> traceReservation("reservation.cancel", "cancel", event,
+                () -> reservations.findById(request.reservationId()).chain(reservation -> {
             if (reservation == null) {
                 return outcome(request.bookingId(), request.bookingItemId(), request.reservationId(), 0, "XXX",
                         "CANCELLED", null, TopicNames.FLIGHT_CANCELLED, event.eventId());
@@ -78,7 +83,7 @@ public class FlightApplicationService {
                 reservation.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
                 return publish(reservation, event.eventId());
             });
-        }));
+        })));
     }
 
     private Uni<Void> hold(EventPayloads.ReservationRequested request, EventEnvelope event) {
@@ -135,12 +140,25 @@ public class FlightApplicationService {
                 });
     }
 
+    private Uni<Void> traceReservation(String name, String operation, EventEnvelope event,
+                                       Supplier<Uni<Void>> action) {
+        return TraceContextSupport.traceUni(name, SpanKind.INTERNAL, span -> {
+            span.setAttribute("booking.id", event.correlationId().toString());
+            span.setAttribute("event.id", event.eventId().toString());
+            span.setAttribute("reservation.operation", operation);
+            span.setAttribute("reservation.resource_type", "flight");
+        }, ignored -> action.get());
+    }
+
     private Uni<Void> failure(EventPayloads.ReservationRequested request, EventEnvelope event, String reason) {
+        Span.current().setAttribute("reservation.outcome", "FAILED")
+                .setAttribute("reservation.failure_reason", reason);
         return outcome(request.bookingId(), request.bookingItemId(), null, 0, request.currency(), "FAILED", reason,
                 TopicNames.FLIGHT_FAILED, event.eventId());
     }
 
     private Uni<Void> publish(FlightReservation reservation, UUID cause) {
+        Span.current().setAttribute("reservation.outcome", reservation.status.name());
         String topic = switch (reservation.status) {
             case HELD -> TopicNames.FLIGHT_HELD;
             case CONFIRMED -> TopicNames.FLIGHT_CONFIRMED;

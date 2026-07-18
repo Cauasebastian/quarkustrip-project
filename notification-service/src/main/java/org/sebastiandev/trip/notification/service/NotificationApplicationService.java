@@ -5,6 +5,7 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
 import io.smallrye.reactive.messaging.MutinyEmitter;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -75,11 +76,16 @@ public class NotificationApplicationService {
     }
 
     private Uni<Void> send(Notification notification, UUID causationId) {
-        return mailer.send(Mail.withText(notification.recipient, "Trip booking " + notification.type,
+        return TraceContextSupport.traceUni("notification.send", SpanKind.INTERNAL, span -> {
+            span.setAttribute("booking.id", notification.bookingId.toString());
+            span.setAttribute("event.id", causationId.toString());
+            span.setAttribute("notification.channel", notification.channel);
+        }, span -> mailer.send(Mail.withText(notification.recipient, "Trip booking " + notification.type,
                         "Booking " + notification.bookingId + " changed to " + notification.type))
                 .invoke(() -> {
                     notification.status = "SENT";
                     notification.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                    span.setAttribute("notification.outcome", "SENT");
                 })
                 .call(() -> notifications.update(notification))
                 .chain(() -> publish(notification, causationId, TopicNames.NOTIFICATION_SENT))
@@ -87,9 +93,10 @@ public class NotificationApplicationService {
                     notification.status = "FAILED";
                     notification.failureReason = failure.getMessage();
                     notification.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                    span.setAttribute("notification.outcome", "FAILED");
                     return notifications.update(notification)
                             .chain(() -> publish(notification, causationId, TopicNames.NOTIFICATION_FAILED));
-                });
+                }));
     }
 
     private Uni<Void> mark(EventEnvelope event) {
