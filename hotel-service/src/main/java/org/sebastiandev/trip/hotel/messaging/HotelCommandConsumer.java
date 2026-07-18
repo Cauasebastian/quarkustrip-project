@@ -65,7 +65,14 @@ public class HotelCommandConsumer {
 
     private Uni<Void> process(EventEnvelope event,Supplier<Uni<Void>> action){return Panache.withTransaction(()->inbox.findById(event.eventId()).chain(existing->{if(existing!=null)return Uni.createFrom().voidItem();return action.get().chain(()->{InboxEvent done=new InboxEvent();done.eventId=event.eventId();done.type=event.type();done.processedAt=OffsetDateTime.now(ZoneOffset.UTC);return inbox.persist(done).replaceWithVoid();});}));}
     private Uni<Void> failure(EventPayloads.ReservationRequested request,EventEnvelope event,String reason){return raw(request.bookingId(),request.bookingItemId(),null,0,request.currency(),"FAILED",reason,TopicNames.HOTEL_FAILED,event.eventId());}
-    private Uni<Void> publish(HotelReservation reservation,UUID cause){String topic=switch(reservation.status){case HELD->TopicNames.HOTEL_HELD;case CONFIRMED->TopicNames.HOTEL_CONFIRMED;case CANCELLED,EXPIRED->TopicNames.HOTEL_CANCELLED;};return outcome(reservation,reservation.status.name(),null,topic,cause);}
+    private Uni<Void> publish(HotelReservation reservation, UUID cause) {
+        String topic = switch (reservation.status) {
+            case HELD -> TopicNames.HOTEL_HELD;
+            case CONFIRMED -> TopicNames.HOTEL_CONFIRMED;
+            case CANCELLED, EXPIRED -> TopicNames.HOTEL_CANCELLED;
+        };
+        return outcome(reservation, reservation.status.name(), null, topic, cause);
+    }
     private Uni<Void> outcome(HotelReservation reservation,String status,String reason,String topic,UUID cause){return raw(reservation.bookingId,reservation.bookingItemId,reservation.id,reservation.amountMinor,reservation.currency,status,reason,topic,cause);}
     private Uni<Void> raw(UUID bookingId,UUID itemId,UUID reservationId,long amount,String currency,String status,String reason,String topic,UUID cause){return outbox.enqueue(topic,bookingId,cause,new EventPayloads.ReservationOutcome(bookingId,itemId,reservationId,amount,currency,status,reason)).replaceWithVoid();}
 }
