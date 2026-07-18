@@ -14,14 +14,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import org.sebastiandev.trip.booking.domain.Booking;
 import org.sebastiandev.trip.booking.domain.BookingItem;
 import org.sebastiandev.trip.booking.domain.BookingItemStatus;
 import org.sebastiandev.trip.booking.domain.BookingItemType;
 import org.sebastiandev.trip.booking.domain.BookingStatus;
 import org.sebastiandev.trip.booking.messaging.OutboxService;
+import org.sebastiandev.trip.booking.messaging.InboxEvent;
 import org.sebastiandev.trip.booking.observability.SagaMetrics;
 import org.sebastiandev.trip.booking.repository.BookingRepository;
+import org.sebastiandev.trip.booking.repository.InboxRepository;
+import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
 import org.sebastiandev.trip.contracts.grpc.BookingItemRequest;
@@ -34,6 +38,7 @@ public class BookingApplicationService {
     @Inject ObjectMapper mapper;
     @Inject OutboxService outbox;
     @Inject SagaMetrics metrics;
+    @Inject InboxRepository inbox;
 
     public Uni<Booking> create(CreateBookingRequest request) {
         UUID userId = validator.validate(request);
@@ -210,6 +215,115 @@ public class BookingApplicationService {
             return outbox.enqueue(topic, booking.id, causationId, terminal(booking)).replaceWithVoid();
         }
         return Uni.createFrom().voidItem();
+    }
+
+    public Uni<Void> processReservationOutcome(EventEnvelope event, EventPayloads.ReservationOutcome payload) {
+        return process(event, payload.bookingId(), (booking, envelope) -> {
+            BookingItem item = booking.items.stream()
+                    .filter(candidate -> candidate.id.equals(payload.bookingItemId()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("booking item not found"));
+            item.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+            switch (payload.status()) {
+                case "HELD" -> {
+                    if (!booking.currency.equals(payload.currency())) {
+                        item.status = BookingItemStatus.FAILED;
+                        item.failureReason = "CURRENCY_MISMATCH";
+                        return startCompensation(booking, "CURRENCY_MISMATCH", envelope.eventId());
+                    }
+                    item.status = BookingItemStatus.HELD;
+                    item.reservationId = payload.reservationId();
+                    item.amountMinor = payload.amountMinor();
+                    if (booking.status == BookingStatus.COMPENSATING) {
+                        return outbox.enqueue(topic(item.type, "cancel"), booking.id, envelope.eventId(),
+                                new EventPayloads.ReservationAction(booking.id, item.id, item.reservationId))
+                                .replaceWithVoid();
+                    }
+                    if (booking.status == BookingStatus.RESERVING && booking.allItems(BookingItemStatus.HELD)) {
+                        return startPayment(booking, envelope.eventId());
+                    }
+                }
+                case "CONFIRMED" -> {
+                    if (booking.status != BookingStatus.CONFIRMING) return Uni.createFrom().voidItem();
+                    item.status = BookingItemStatus.CONFIRMED;
+                    if (booking.allItems(BookingItemStatus.CONFIRMED)) {
+                        booking.status = BookingStatus.CONFIRMED;
+                        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                        metrics.terminal(booking);
+                        return outbox.enqueue(TopicNames.BOOKING_CONFIRMED, booking.id, envelope.eventId(),
+                                terminal(booking)).replaceWithVoid();
+                    }
+                }
+                case "CANCELLED" -> {
+                    item.status = BookingItemStatus.CANCELLED;
+                    if (booking.status == BookingStatus.COMPENSATING) {
+                        return finishCompensationIfPossible(booking, envelope.eventId());
+                    }
+                }
+                default -> {
+                    BookingItemStatus previous = item.status;
+                    item.status = BookingItemStatus.FAILED;
+                    item.failureReason = payload.reason();
+                    if (booking.status == BookingStatus.COMPENSATING) {
+                        if (previous == BookingItemStatus.PENDING) {
+                            return finishCompensationIfPossible(booking, envelope.eventId());
+                        }
+                        return manualReview(booking, "COMPENSATION_FAILED", envelope.eventId());
+                    }
+                    return startCompensation(booking,
+                            payload.reason() == null ? "RESERVATION_FAILED" : payload.reason(), envelope.eventId());
+                }
+            }
+            return Uni.createFrom().voidItem();
+        });
+    }
+
+    public Uni<Void> processPaymentOutcome(EventEnvelope event, EventPayloads.PaymentOutcome payload) {
+        return process(event, payload.bookingId(), (booking, envelope) -> switch (payload.status()) {
+            case "SUCCEEDED" -> {
+                if (booking.status != BookingStatus.PAYMENT_PENDING) yield Uni.createFrom().voidItem();
+                booking.paymentId = payload.paymentId();
+                yield startConfirmation(booking, envelope.eventId());
+            }
+            case "FAILED" -> {
+                if (booking.status != BookingStatus.PAYMENT_PENDING) yield Uni.createFrom().voidItem();
+                yield startCompensation(booking,
+                        payload.reason() == null ? "PAYMENT_FAILED" : payload.reason(), envelope.eventId());
+            }
+            case "REFUNDED" -> {
+                if (booking.status != BookingStatus.COMPENSATING) yield Uni.createFrom().voidItem();
+                booking.paymentId = null;
+                yield finishCompensationIfPossible(booking, envelope.eventId());
+            }
+            case "REFUND_FAILED" -> manualReview(booking, "REFUND_FAILED", envelope.eventId());
+            default -> Uni.createFrom().voidItem();
+        });
+    }
+
+    private Uni<Void> process(EventEnvelope event, UUID bookingId,
+                              BiFunction<Booking, EventEnvelope, Uni<Void>> action) {
+        return Panache.withTransaction(() -> inbox.findById(event.eventId()).chain(existing -> {
+            if (existing != null) return Uni.createFrom().voidItem();
+            return repository.findById(bookingId)
+                    .onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
+                    .chain(booking -> action.apply(booking, event))
+                    .chain(() -> {
+                        InboxEvent processed = new InboxEvent();
+                        processed.eventId = event.eventId();
+                        processed.type = event.type();
+                        processed.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                        return inbox.persist(processed).replaceWithVoid();
+                    });
+        }));
+    }
+
+    private Uni<Void> manualReview(Booking booking, String reason, UUID causationId) {
+        booking.status = BookingStatus.MANUAL_REVIEW;
+        booking.failureCode = reason;
+        booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        metrics.manualReview();
+        return outbox.enqueue(TopicNames.BOOKING_MANUAL_REVIEW, booking.id, causationId, terminal(booking))
+                .replaceWithVoid();
     }
 
     public EventPayloads.BookingTerminal terminal(Booking booking) {

@@ -1,11 +1,52 @@
 package org.sebastiandev.trip.notification.messaging;
-import com.fasterxml.jackson.databind.ObjectMapper; import io.quarkus.mailer.Mail; import io.quarkus.mailer.reactive.ReactiveMailer; import io.smallrye.mutiny.Uni; import io.smallrye.reactive.messaging.MutinyEmitter; import io.smallrye.reactive.messaging.kafka.KafkaRecord; import jakarta.enterprise.context.ApplicationScoped; import jakarta.inject.Inject;
-import java.time.*; import java.util.UUID; import org.eclipse.microprofile.reactive.messaging.*; import org.eclipse.microprofile.faulttolerance.Retry; import org.sebastiandev.trip.contracts.event.*; import org.sebastiandev.trip.notification.domain.*; import org.sebastiandev.trip.notification.repository.*;
-@ApplicationScoped @Retry(maxRetries=3,delay=200) public class NotificationConsumer{
- @Inject ObjectMapper mapper;@Inject NotificationRepository notifications;@Inject ProcessedEventRepository processed;@Inject UserContactRepository contacts;@Inject ReactiveMailer mailer;@Inject @Channel("notification-events") MutinyEmitter<String> emitter;
- @Incoming("user-profile-changed")public Uni<Void> profileChanged(String json){EventEnvelope event=EventSchemaValidator.decodeValidated(mapper,json);EventPayloads.UserProfileChanged payload=EventCodec.payload(mapper,event,EventPayloads.UserProfileChanged.class);return processed.findById(event.eventId()).chain(existing->{if(existing!=null)return Uni.createFrom().voidItem();return contacts.findById(payload.userId()).chain(contact->{UserContact value=contact==null?new UserContact():contact;value.userId=payload.userId();value.subject=payload.subject();value.email=payload.email();return contact==null?contacts.persist(value):contacts.update(value);}).chain(()->mark(event));});}
- @Incoming("booking-confirmed")public Uni<Void> confirmed(String json){return terminal(json);}@Incoming("booking-failed")public Uni<Void> failed(String json){return terminal(json);}@Incoming("booking-cancelled")public Uni<Void> cancelled(String json){return terminal(json);}@Incoming("booking-manual-review")public Uni<Void> manual(String json){return terminal(json);}
- private Uni<Void> terminal(String json){EventEnvelope event=EventSchemaValidator.decodeValidated(mapper,json);EventPayloads.BookingTerminal payload=EventCodec.payload(mapper,event,EventPayloads.BookingTerminal.class);return processed.findById(event.eventId()).chain(existing->{if(existing!=null)return Uni.createFrom().voidItem();return contacts.findById(payload.userId()).chain(contact->{String recipient=contact==null?payload.userId()+"@local.test":contact.email;OffsetDateTime now=OffsetDateTime.now(ZoneOffset.UTC);Notification notification=new Notification();notification.id=UUID.randomUUID();notification.bookingId=payload.bookingId();notification.userId=payload.userId();notification.channel="EMAIL";notification.type="BOOKING_"+payload.status();notification.status="PENDING";notification.recipient=recipient;notification.payloadJson=EventCodec.encode(mapper,event);notification.createdAt=now;notification.updatedAt=now;return notifications.persist(notification).chain(saved->mailer.send(Mail.withText(recipient,"Trip booking "+payload.status(),"Booking "+payload.bookingId()+" is "+payload.status())).invoke(()->{saved.status="SENT";saved.updatedAt=OffsetDateTime.now(ZoneOffset.UTC);}).call(()->notifications.update(saved)).chain(()->publish(saved,event.eventId(),TopicNames.NOTIFICATION_SENT)).onFailure().recoverWithUni(failure->{saved.status="FAILED";saved.failureReason=failure.getMessage();saved.updatedAt=OffsetDateTime.now(ZoneOffset.UTC);return notifications.update(saved).chain(()->publish(saved,event.eventId(),TopicNames.NOTIFICATION_FAILED));}));}).chain(()->mark(event));});}
- private Uni<Void> mark(EventEnvelope event){ProcessedEvent done=new ProcessedEvent();done.eventId=event.eventId();done.type=event.type();done.processedAt=OffsetDateTime.now(ZoneOffset.UTC);return processed.persist(done).replaceWithVoid();}
- private Uni<Void> publish(Notification n,UUID cause,String topic){EventPayloads.NotificationOutcome payload=new EventPayloads.NotificationOutcome(n.id,n.bookingId,n.userId,n.channel,n.status,n.failureReason);EventEnvelope event=EventCodec.envelope(mapper,topic,n.bookingId,cause,"notification-service",payload);return emitter.sendMessage(KafkaRecord.of(topic,n.bookingId.toString(),EventCodec.encode(mapper,event)));}
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.faulttolerance.Retry;
+import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.sebastiandev.trip.contracts.event.EventCodec;
+import org.sebastiandev.trip.contracts.event.EventEnvelope;
+import org.sebastiandev.trip.contracts.event.EventPayloads;
+import org.sebastiandev.trip.contracts.event.EventSchemaValidator;
+import org.sebastiandev.trip.notification.service.NotificationApplicationService;
+
+@ApplicationScoped
+@Retry(maxRetries = 3, delay = 200)
+public class NotificationConsumer {
+    @Inject ObjectMapper mapper;
+    @Inject NotificationApplicationService service;
+
+    @Incoming("user-profile-changed")
+    public Uni<Void> profileChanged(String json) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+        return service.updateContact(event,
+                EventCodec.payload(mapper, event, EventPayloads.UserProfileChanged.class));
+    }
+
+    @Incoming("booking-confirmed")
+    public Uni<Void> confirmed(String json) {
+        return terminal(json);
+    }
+
+    @Incoming("booking-failed")
+    public Uni<Void> failed(String json) {
+        return terminal(json);
+    }
+
+    @Incoming("booking-cancelled")
+    public Uni<Void> cancelled(String json) {
+        return terminal(json);
+    }
+
+    @Incoming("booking-manual-review")
+    public Uni<Void> manualReview(String json) {
+        return terminal(json);
+    }
+
+    private Uni<Void> terminal(String json) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+        return service.notifyTerminal(event, EventCodec.payload(mapper, event, EventPayloads.BookingTerminal.class));
+    }
 }

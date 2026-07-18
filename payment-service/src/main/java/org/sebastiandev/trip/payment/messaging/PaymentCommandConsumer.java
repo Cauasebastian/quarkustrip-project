@@ -1,10 +1,32 @@
 package org.sebastiandev.trip.payment.messaging;
-import com.fasterxml.jackson.databind.ObjectMapper; import io.quarkus.hibernate.reactive.panache.Panache; import io.smallrye.mutiny.Uni; import jakarta.enterprise.context.ApplicationScoped; import jakarta.inject.Inject; import jakarta.persistence.LockModeType;
-import java.time.*; import java.util.function.Supplier; import org.eclipse.microprofile.reactive.messaging.Incoming; import org.eclipse.microprofile.faulttolerance.Retry; import org.sebastiandev.trip.contracts.event.*; import org.sebastiandev.trip.payment.domain.Payment; import org.sebastiandev.trip.payment.provider.PaymentProvider; import org.sebastiandev.trip.payment.repository.*;
-@ApplicationScoped @Retry(maxRetries=3,delay=200) public class PaymentCommandConsumer{
- @Inject ObjectMapper mapper;@Inject PaymentRepository payments;@Inject InboxRepository inbox;@Inject OutboxService outbox;@Inject PaymentProvider provider;
- @Incoming("process-payment")public Uni<Void> processPayment(String json){EventEnvelope event=EventSchemaValidator.decodeValidated(mapper,json);EventPayloads.PaymentRequested request=EventCodec.payload(mapper,event,EventPayloads.PaymentRequested.class);return process(event,()->payments.find("bookingId",request.bookingId()).firstResult().chain(existing->{if(existing!=null)return publish(existing,event.eventId());PaymentProvider.Result result=provider.charge(request.paymentMethodRef(),request.amountMinor(),request.currency());OffsetDateTime now=OffsetDateTime.now(ZoneOffset.UTC);Payment payment=new Payment();payment.id=java.util.UUID.randomUUID();payment.bookingId=request.bookingId();payment.userId=request.userId();payment.amountMinor=request.amountMinor();payment.currency=request.currency();payment.paymentMethodRef=request.paymentMethodRef();payment.status=result.successful()?Payment.Status.SUCCEEDED:Payment.Status.FAILED;payment.transactionId=result.transactionId();payment.failureReason=result.reason();payment.createdAt=now;payment.updatedAt=now;return payments.persist(payment).chain(()->publish(payment,event.eventId()));}));}
- @Incoming("refund-payment")public Uni<Void> refund(String json){EventEnvelope event=EventSchemaValidator.decodeValidated(mapper,json);EventPayloads.RefundRequested request=EventCodec.payload(mapper,event,EventPayloads.RefundRequested.class);return process(event,()->payments.findById(request.paymentId(),LockModeType.PESSIMISTIC_WRITE).chain(payment->{if(payment==null||!payment.bookingId.equals(request.bookingId()))return outbox.enqueue(TopicNames.PAYMENT_REFUND_FAILED,request.bookingId(),event.eventId(),new EventPayloads.PaymentOutcome(request.bookingId(),request.paymentId(),"REFUND_FAILED","PAYMENT_NOT_FOUND")).replaceWithVoid();if(payment.status==Payment.Status.REFUNDED)return publish(payment,event.eventId());PaymentProvider.Result result=provider.refund(payment.transactionId,payment.paymentMethodRef);payment.status=result.successful()?Payment.Status.REFUNDED:Payment.Status.REFUND_FAILED;payment.failureReason=result.reason();payment.updatedAt=OffsetDateTime.now(ZoneOffset.UTC);return publish(payment,event.eventId());}));}
- private Uni<Void> process(EventEnvelope event,Supplier<Uni<Void>> action){return Panache.withTransaction(()->inbox.findById(event.eventId()).chain(existing->{if(existing!=null)return Uni.createFrom().voidItem();return action.get().chain(()->{InboxEvent done=new InboxEvent();done.eventId=event.eventId();done.type=event.type();done.processedAt=OffsetDateTime.now(ZoneOffset.UTC);return inbox.persist(done).replaceWithVoid();});}));}
- private Uni<Void> publish(Payment payment,java.util.UUID cause){String topic=switch(payment.status){case SUCCEEDED->TopicNames.PAYMENT_SUCCEEDED;case FAILED->TopicNames.PAYMENT_FAILED;case REFUNDED->TopicNames.PAYMENT_REFUNDED;case REFUND_FAILED->TopicNames.PAYMENT_REFUND_FAILED;case PENDING->throw new IllegalStateException("pending payment cannot be published");};return outbox.enqueue(topic,payment.bookingId,cause,new EventPayloads.PaymentOutcome(payment.bookingId,payment.id,payment.status.name(),payment.failureReason)).replaceWithVoid();}
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.faulttolerance.Retry;
+import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.sebastiandev.trip.contracts.event.EventCodec;
+import org.sebastiandev.trip.contracts.event.EventEnvelope;
+import org.sebastiandev.trip.contracts.event.EventPayloads;
+import org.sebastiandev.trip.contracts.event.EventSchemaValidator;
+import org.sebastiandev.trip.payment.service.PaymentApplicationService;
+
+@ApplicationScoped
+@Retry(maxRetries = 3, delay = 200)
+public class PaymentCommandConsumer {
+    @Inject ObjectMapper mapper;
+    @Inject PaymentApplicationService service;
+
+    @Incoming("process-payment")
+    public Uni<Void> processPayment(String json) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+        return service.charge(event, EventCodec.payload(mapper, event, EventPayloads.PaymentRequested.class));
+    }
+
+    @Incoming("refund-payment")
+    public Uni<Void> refund(String json) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+        return service.refund(event, EventCodec.payload(mapper, event, EventPayloads.RefundRequested.class));
+    }
 }

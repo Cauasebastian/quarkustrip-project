@@ -1,3 +1,35 @@
 package org.sebastiandev.trip.payment.grpc;
-import io.grpc.Status; import io.quarkus.grpc.GrpcService; import io.smallrye.mutiny.Uni; import jakarta.inject.Inject; import java.util.UUID; import org.sebastiandev.trip.contracts.grpc.*; import org.sebastiandev.trip.payment.repository.PaymentRepository;
-@GrpcService public class PaymentGrpcService implements PaymentQueryService{@Inject PaymentRepository payments;@Override public Uni<GetPaymentResponse> getPayment(GetPaymentRequest request){try{return payments.find("bookingId",UUID.fromString(request.getBookingId())).firstResult().onItem().ifNull().failWith(Status.NOT_FOUND.asRuntimeException()).map(p->GetPaymentResponse.newBuilder().setPayment(PaymentView.newBuilder().setId(p.id.toString()).setBookingId(p.bookingId.toString()).setStatus(p.status.name()).setAmount(Money.newBuilder().setCurrency(p.currency).setAmountMinor(p.amountMinor)).setTransactionId(p.transactionId==null?"":p.transactionId)).build());}catch(IllegalArgumentException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.asRuntimeException());}}}
+
+import io.grpc.Status;
+import io.quarkus.grpc.GrpcService;
+import io.smallrye.mutiny.Uni;
+import jakarta.inject.Inject;
+import java.util.UUID;
+import org.sebastiandev.trip.contracts.grpc.GetPaymentRequest;
+import org.sebastiandev.trip.contracts.grpc.GetPaymentResponse;
+import org.sebastiandev.trip.contracts.grpc.Money;
+import org.sebastiandev.trip.contracts.grpc.PaymentQueryService;
+import org.sebastiandev.trip.contracts.grpc.PaymentView;
+import org.sebastiandev.trip.payment.service.PaymentApplicationService;
+
+@GrpcService
+public class PaymentGrpcService implements PaymentQueryService {
+    @Inject PaymentApplicationService service;
+
+    @Override
+    public Uni<GetPaymentResponse> getPayment(GetPaymentRequest request) {
+        try {
+            return service.getByBookingId(UUID.fromString(request.getBookingId()))
+                    .onItem().ifNull().failWith(Status.NOT_FOUND.asRuntimeException())
+                    .map(payment -> GetPaymentResponse.newBuilder().setPayment(PaymentView.newBuilder()
+                            .setId(payment.id.toString())
+                            .setBookingId(payment.bookingId.toString())
+                            .setStatus(payment.status.name())
+                            .setAmount(Money.newBuilder().setCurrency(payment.currency)
+                                    .setAmountMinor(payment.amountMinor))
+                            .setTransactionId(payment.transactionId == null ? "" : payment.transactionId)).build());
+        } catch (IllegalArgumentException exception) {
+            return Uni.createFrom().failure(Status.INVALID_ARGUMENT.asRuntimeException());
+        }
+    }
+}
