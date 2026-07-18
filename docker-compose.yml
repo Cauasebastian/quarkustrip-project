@@ -26,7 +26,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
-    ports: ["5432:5432"]
+    ports: ["${POSTGRES_HOST_PORT:-5432}:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-trip.sql:ro
@@ -38,7 +38,7 @@ services:
 
   mongodb:
     image: mongo:7.0.17
-    ports: ["27017:27017"]
+    ports: ["${MONGODB_HOST_PORT:-27017}:27017"]
     volumes:
       - mongo_data:/data/db
       - ./infra/mongo/init.js:/docker-entrypoint-initdb.d/01-notifications.js:ro
@@ -51,7 +51,7 @@ services:
   redis:
     image: redis:7.4.2-alpine
     command: ["redis-server", "--appendonly", "yes"]
-    ports: ["6379:6379"]
+    ports: ["${REDIS_HOST_PORT:-6379}:6379"]
     volumes: ["redis_data:/data"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -92,7 +92,7 @@ services:
       KC_DB_PASSWORD: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-    ports: ["8180:8080", "9000:9000"]
+    ports: ["8180:8080"]
     volumes:
       - ./infra/keycloak/trip-realm.json:/opt/keycloak/data/import/trip-realm.json:ro
     depends_on:
@@ -209,7 +209,7 @@ services:
   api-gateway-service:
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: api-gateway-service } }
     restart: unless-stopped
-    ports: ["8080:8080"]
+    ports: ["${GATEWAY_HOST_PORT:-8080}:8080"]
     environment:
       OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/trip
       QUARKUS_OIDC_TOKEN_ISSUER: http://localhost:8180/realms/trip
@@ -239,13 +239,13 @@ services:
     build:
       context: ./trip-ui
       args:
-        VITE_API_BASE_URL: http://localhost:8080
+        VITE_API_BASE_URL: ${GATEWAY_PUBLIC_URL:-http://localhost:8080}
         VITE_KEYCLOAK_URL: http://localhost:8180
         VITE_KEYCLOAK_REALM: trip
         VITE_KEYCLOAK_CLIENT_ID: trip-gateway
         VITE_SHOW_DEV_CREDENTIALS: "true"
     restart: unless-stopped
-    ports: ["3000:3000"]
+    ports: ["${TRIP_UI_HOST_PORT:-3000}:3000"]
     depends_on:
       api-gateway-service: { condition: service_healthy }
       keycloak: { condition: service_healthy }
