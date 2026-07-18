@@ -40,10 +40,11 @@ public class SagaTimeoutMonitor {
                 if (booking.status == BookingStatus.COMPENSATING) {
                     booking.status = BookingStatus.MANUAL_REVIEW;
                     booking.failureCode = "COMPENSATION_TIMEOUT";
-                    return outbox.enqueue(TopicNames.BOOKING_MANUAL_REVIEW, booking.id, null,
-                            service.terminal(booking)).replaceWithVoid();
+                    return service.inSagaContext(booking, () -> outbox.enqueue(
+                            TopicNames.BOOKING_MANUAL_REVIEW, booking.id, null,
+                            service.terminal(booking)).replaceWithVoid());
                 }
-                return service.startCompensation(booking, "SAGA_TIMEOUT", null);
+                return service.inSagaContext(booking, () -> service.startCompensation(booking, "SAGA_TIMEOUT", null));
             })));
         }
         return chain;

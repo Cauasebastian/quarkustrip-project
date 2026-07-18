@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.eclipse.microprofile.reactive.messaging.Message;
 import org.sebastiandev.trip.contracts.event.EventCodec;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
@@ -19,14 +20,14 @@ public class PaymentCommandConsumer {
     @Inject PaymentApplicationService service;
 
     @Incoming("process-payment")
-    public Uni<Void> processPayment(String json) {
-        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+    public Uni<Void> processPayment(Message<String> message) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.charge(event, EventCodec.payload(mapper, event, EventPayloads.PaymentRequested.class));
     }
 
     @Incoming("refund-payment")
-    public Uni<Void> refund(String json) {
-        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+    public Uni<Void> refund(Message<String> message) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.refund(event, EventCodec.payload(mapper, event, EventPayloads.RefundRequested.class));
     }
 }

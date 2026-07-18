@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
+import io.opentelemetry.api.trace.Span;
 import io.smallrye.reactive.messaging.MutinyEmitter;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -11,11 +12,13 @@ import jakarta.inject.Inject;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.sebastiandev.trip.contracts.event.EventCodec;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
+import org.sebastiandev.trip.contracts.observability.TraceContextSupport;
 import org.sebastiandev.trip.notification.domain.Notification;
 import org.sebastiandev.trip.notification.domain.ProcessedEvent;
 import org.sebastiandev.trip.notification.domain.UserContact;
@@ -33,7 +36,7 @@ public class NotificationApplicationService {
     @Inject @Channel("notification-events") MutinyEmitter<String> emitter;
 
     public Uni<Void> updateContact(EventEnvelope event, EventPayloads.UserProfileChanged payload) {
-        return processed.findById(event.eventId()).chain(existing -> {
+        return process(event, null, () -> processed.findById(event.eventId()).chain(existing -> {
             if (existing != null) return Uni.createFrom().voidItem();
             return contacts.findById(payload.userId()).chain(contact -> {
                 UserContact value = contact == null ? new UserContact() : contact;
@@ -42,11 +45,11 @@ public class NotificationApplicationService {
                 value.email = payload.email();
                 return contact == null ? contacts.persist(value) : contacts.update(value);
             }).chain(() -> mark(event));
-        });
+        }));
     }
 
     public Uni<Void> notifyTerminal(EventEnvelope event, EventPayloads.BookingTerminal payload) {
-        return processed.findById(event.eventId()).chain(existing -> {
+        return process(event, payload.bookingId(), () -> processed.findById(event.eventId()).chain(existing -> {
             if (existing != null) return Uni.createFrom().voidItem();
             return contacts.findById(payload.userId()).chain(contact -> {
                 String recipient = contact == null ? payload.userId() + "@local.test" : contact.email;
@@ -64,7 +67,7 @@ public class NotificationApplicationService {
                 notification.updatedAt = now;
                 return notifications.persist(notification).chain(saved -> send(saved, event.eventId()));
             }).chain(() -> mark(event));
-        });
+        }));
     }
 
     public Uni<Notification> get(UUID notificationId) {
@@ -105,5 +108,13 @@ public class NotificationApplicationService {
                 "notification-service", payload);
         return emitter.sendMessage(KafkaRecord.of(topic, notification.bookingId.toString(),
                 EventCodec.encode(mapper, event)));
+    }
+
+    private Uni<Void> process(EventEnvelope event, UUID bookingId, Supplier<Uni<Void>> action) {
+        Span span = TraceContextSupport.startInboxSpan(event.eventId(), bookingId, event.type());
+        return TraceContextSupport.inContext(span, action).onItemOrFailure().invoke((ignored, failure) -> {
+            if (failure != null) TraceContextSupport.fail(span, failure);
+            span.end();
+        });
     }
 }

@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.eclipse.microprofile.reactive.messaging.Message;
 import org.sebastiandev.trip.contracts.event.EventCodec;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
@@ -19,34 +20,34 @@ public class NotificationConsumer {
     @Inject NotificationApplicationService service;
 
     @Incoming("user-profile-changed")
-    public Uni<Void> profileChanged(String json) {
-        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+    public Uni<Void> profileChanged(Message<String> message) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.updateContact(event,
                 EventCodec.payload(mapper, event, EventPayloads.UserProfileChanged.class));
     }
 
     @Incoming("booking-confirmed")
-    public Uni<Void> confirmed(String json) {
-        return terminal(json);
+    public Uni<Void> confirmed(Message<String> message) {
+        return terminal(message);
     }
 
     @Incoming("booking-failed")
-    public Uni<Void> failed(String json) {
-        return terminal(json);
+    public Uni<Void> failed(Message<String> message) {
+        return terminal(message);
     }
 
     @Incoming("booking-cancelled")
-    public Uni<Void> cancelled(String json) {
-        return terminal(json);
+    public Uni<Void> cancelled(Message<String> message) {
+        return terminal(message);
     }
 
     @Incoming("booking-manual-review")
-    public Uni<Void> manualReview(String json) {
-        return terminal(json);
+    public Uni<Void> manualReview(Message<String> message) {
+        return terminal(message);
     }
 
-    private Uni<Void> terminal(String json) {
-        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, json);
+    private Uni<Void> terminal(Message<String> message) {
+        EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.notifyTerminal(event, EventCodec.payload(mapper, event, EventPayloads.BookingTerminal.class));
     }
 }

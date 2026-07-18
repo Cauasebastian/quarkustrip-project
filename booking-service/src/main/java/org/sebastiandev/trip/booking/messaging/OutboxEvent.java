@@ -18,6 +18,10 @@ public class OutboxEvent {
     public UUID aggregateId;
     @Column(nullable = false, columnDefinition = "jsonb")
     public String payload;
+    @Column(name = "trace_parent", length = 55)
+    public String traceParent;
+    @Column(name = "trace_state", length = 512)
+    public String traceState;
     @Column(nullable = false)
     public int attempts;
     @Column(name = "created_at", nullable = false)

@@ -55,6 +55,12 @@ public class Booking {
     @Column(name = "cancellation_requested", nullable = false)
     public boolean cancellationRequested;
 
+    @Column(name = "saga_trace_parent", length = 55)
+    public String sagaTraceParent;
+
+    @Column(name = "saga_trace_state", length = 512)
+    public String sagaTraceState;
+
     @Version
     public long version;
 

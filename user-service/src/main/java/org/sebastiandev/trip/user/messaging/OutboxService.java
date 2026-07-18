@@ -1,4 +1,4 @@
-package org.sebastiandev.trip.flight.messaging;
+package org.sebastiandev.trip.user.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
@@ -11,19 +11,24 @@ import org.sebastiandev.trip.contracts.event.EventCodec;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.observability.TraceContextSnapshot;
 import org.sebastiandev.trip.contracts.observability.TraceContextSupport;
-import org.sebastiandev.trip.flight.repository.OutboxRepository;
+import org.sebastiandev.trip.user.repository.OutboxRepository;
 
 @ApplicationScoped
 public class OutboxService {
     @Inject ObjectMapper mapper;
     @Inject OutboxRepository repository;
-    public Uni<EventEnvelope> enqueue(String topic, UUID bookingId, UUID causationId, Object payload) {
-        EventEnvelope envelope = EventCodec.envelope(mapper, topic, bookingId, causationId, "flight-service", payload);
-        OutboxEvent event = new OutboxEvent();
-        event.id = envelope.eventId(); event.topic = topic; event.aggregateId = bookingId;
-        event.payload = EventCodec.encode(mapper, envelope);
+
+    public Uni<EventEnvelope> enqueue(String topic, UUID aggregateId, UUID causationId, Object payload) {
+        EventEnvelope envelope = EventCodec.envelope(mapper, topic, aggregateId, causationId,
+                "user-service", payload);
         TraceContextSnapshot trace = TraceContextSupport.captureCurrent();
-        event.traceParent = trace.traceParent(); event.traceState = trace.traceState();
+        OutboxEvent event = new OutboxEvent();
+        event.id = envelope.eventId();
+        event.topic = topic;
+        event.aggregateId = aggregateId;
+        event.payload = EventCodec.encode(mapper, envelope);
+        event.traceParent = trace.traceParent();
+        event.traceState = trace.traceState();
         event.createdAt = OffsetDateTime.now(ZoneOffset.UTC);
         return repository.persist(event).replaceWith(envelope);
     }

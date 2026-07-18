@@ -2,6 +2,7 @@ package org.sebastiandev.trip.transport.service;
 
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
+import io.opentelemetry.api.trace.Span;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.LockModeType;
@@ -13,6 +14,7 @@ import java.util.function.Supplier;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
+import org.sebastiandev.trip.contracts.observability.TraceContextSupport;
 import org.sebastiandev.trip.transport.domain.TransportReservation;
 import org.sebastiandev.trip.transport.messaging.InboxEvent;
 import org.sebastiandev.trip.transport.messaging.OutboxService;
@@ -103,16 +105,24 @@ public class TransportApplicationService {
     }
 
     private Uni<Void> process(EventEnvelope event, Supplier<Uni<Void>> action) {
-        return Panache.withTransaction(() -> inbox.findById(event.eventId()).chain(existing -> {
-            if (existing != null) return Uni.createFrom().voidItem();
-            return action.get().chain(() -> {
-                InboxEvent done = new InboxEvent();
-                done.eventId = event.eventId();
-                done.type = event.type();
-                done.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
-                return inbox.persist(done).replaceWithVoid();
-            });
-        }));
+        Span span = TraceContextSupport.startInboxSpan(event.eventId(), event.correlationId(), event.type());
+        return TraceContextSupport.inContext(span, () -> Panache.withTransaction(() ->
+                inbox.findById(event.eventId()).chain(existing -> {
+                    if (existing != null) {
+                        span.setAttribute("inbox.duplicate", true);
+                        return Uni.createFrom().voidItem();
+                    }
+                    return TraceContextSupport.inContext(span, action).chain(() -> {
+                        InboxEvent done = new InboxEvent();
+                        done.eventId = event.eventId();
+                        done.type = event.type();
+                        done.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                        return inbox.persist(done).replaceWithVoid();
+                    });
+                }))).onItemOrFailure().invoke((ignored, failure) -> {
+                    if (failure != null) TraceContextSupport.fail(span, failure);
+                    span.end();
+                });
     }
 
     private Uni<Void> failure(EventPayloads.ReservationRequested request, EventEnvelope event, String reason) {

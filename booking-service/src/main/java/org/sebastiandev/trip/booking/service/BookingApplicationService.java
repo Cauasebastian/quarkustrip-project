@@ -6,6 +6,7 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
+import io.opentelemetry.api.trace.Span;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.OffsetDateTime;
@@ -28,6 +29,8 @@ import org.sebastiandev.trip.booking.repository.InboxRepository;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
+import org.sebastiandev.trip.contracts.observability.TraceContextSnapshot;
+import org.sebastiandev.trip.contracts.observability.TraceContextSupport;
 import org.sebastiandev.trip.contracts.grpc.BookingItemRequest;
 import org.sebastiandev.trip.contracts.grpc.CreateBookingRequest;
 
@@ -60,6 +63,9 @@ public class BookingApplicationService {
         booking.sagaDeadline = now.plusMinutes(5);
         booking.createdAt = now;
         booking.updatedAt = now;
+        TraceContextSnapshot sagaTrace = TraceContextSupport.captureCurrent();
+        booking.sagaTraceParent = sagaTrace.traceParent();
+        booking.sagaTraceState = sagaTrace.traceState();
 
         for (BookingItemRequest requested : request.getItemsList()) {
             BookingItem item = new BookingItem();
@@ -133,8 +139,8 @@ public class BookingApplicationService {
                 throw new IllegalStateException("booking cannot be cancelled in state " + booking.status);
             }
             booking.cancellationRequested = true;
-            return startCompensation(booking, reason == null || reason.isBlank() ? "USER_CANCELLED" : reason, null)
-                    .replaceWith(booking);
+            return inSagaContext(booking, () -> startCompensation(booking,
+                    reason == null || reason.isBlank() ? "USER_CANCELLED" : reason, null)).replaceWith(booking);
         }));
     }
 
@@ -302,19 +308,27 @@ public class BookingApplicationService {
 
     private Uni<Void> process(EventEnvelope event, UUID bookingId,
                               BiFunction<Booking, EventEnvelope, Uni<Void>> action) {
-        return Panache.withTransaction(() -> inbox.findById(event.eventId()).chain(existing -> {
-            if (existing != null) return Uni.createFrom().voidItem();
-            return repository.findById(bookingId)
-                    .onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
-                    .chain(booking -> action.apply(booking, event))
-                    .chain(() -> {
-                        InboxEvent processed = new InboxEvent();
-                        processed.eventId = event.eventId();
-                        processed.type = event.type();
-                        processed.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
-                        return inbox.persist(processed).replaceWithVoid();
-                    });
-        }));
+        Span span = TraceContextSupport.startInboxSpan(event.eventId(), bookingId, event.type());
+        return TraceContextSupport.inContext(span, () -> Panache.withTransaction(() ->
+                inbox.findById(event.eventId()).chain(existing -> {
+                    if (existing != null) {
+                        span.setAttribute("inbox.duplicate", true);
+                        return Uni.createFrom().voidItem();
+                    }
+                    return repository.findById(bookingId)
+                            .onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
+                            .chain(booking -> TraceContextSupport.inContext(span, () -> action.apply(booking, event)))
+                            .chain(() -> {
+                                InboxEvent processed = new InboxEvent();
+                                processed.eventId = event.eventId();
+                                processed.type = event.type();
+                                processed.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                                return inbox.persist(processed).replaceWithVoid();
+                            });
+                }))).onItemOrFailure().invoke((ignored, failure) -> {
+                    if (failure != null) TraceContextSupport.fail(span, failure);
+                    span.end();
+                });
     }
 
     private Uni<Void> manualReview(Booking booking, String reason, UUID causationId) {
@@ -324,6 +338,11 @@ public class BookingApplicationService {
         metrics.manualReview();
         return outbox.enqueue(TopicNames.BOOKING_MANUAL_REVIEW, booking.id, causationId, terminal(booking))
                 .replaceWithVoid();
+    }
+
+    public <T> Uni<T> inSagaContext(Booking booking, java.util.function.Supplier<Uni<T>> action) {
+        return TraceContextSupport.inContext(TraceContextSupport.restore(
+                new TraceContextSnapshot(booking.sagaTraceParent, booking.sagaTraceState)), action);
     }
 
     public EventPayloads.BookingTerminal terminal(Booking booking) {

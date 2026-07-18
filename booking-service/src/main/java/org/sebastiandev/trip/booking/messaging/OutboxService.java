@@ -10,6 +10,8 @@ import java.util.UUID;
 import org.sebastiandev.trip.booking.repository.OutboxRepository;
 import org.sebastiandev.trip.contracts.event.EventCodec;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
+import org.sebastiandev.trip.contracts.observability.TraceContextSnapshot;
+import org.sebastiandev.trip.contracts.observability.TraceContextSupport;
 
 @ApplicationScoped
 public class OutboxService {
@@ -24,6 +26,9 @@ public class OutboxService {
         event.topic = topic;
         event.aggregateId = aggregateId;
         event.payload = EventCodec.encode(mapper, envelope);
+        TraceContextSnapshot trace = TraceContextSupport.captureCurrent();
+        event.traceParent = trace.traceParent();
+        event.traceState = trace.traceState();
         event.createdAt = OffsetDateTime.now(ZoneOffset.UTC);
         return repository.persist(event).replaceWith(envelope);
     }
