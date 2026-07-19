@@ -39,6 +39,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 5s
+      start_interval: 1s
+      start_period: 10s
       timeout: 3s
       retries: 20
 
@@ -54,6 +56,8 @@ services:
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 5s
+      start_interval: 1s
+      start_period: 10s
       timeout: 5s
       retries: 20
 
@@ -67,6 +71,8 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      start_interval: 1s
+      start_period: 10s
       timeout: 3s
       retries: 20
 
@@ -93,6 +99,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
       interval: 10s
+      start_interval: 1s
+      start_period: 30s
       timeout: 5s
       retries: 30
 
@@ -118,6 +126,8 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3"]
       interval: 10s
+      start_interval: 1s
+      start_period: 30s
       timeout: 5s
       retries: 30
 
@@ -129,6 +139,8 @@ services:
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
+      start_interval: 1s
+      start_period: 10s
       timeout: 3s
       retries: 20
 
@@ -147,6 +159,8 @@ services:
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:13133/status"]
       interval: 10s
+      start_interval: 1s
+      start_period: 10s
       timeout: 5s
       retries: 20
 
@@ -161,6 +175,8 @@ services:
     healthcheck: &app-health
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/q/health/ready"]
       interval: 10s
+      start_interval: 1s
+      start_period: 45s
       timeout: 5s
       retries: 30
 
@@ -282,6 +298,8 @@ services:
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/healthz"]
       interval: 10s
+      start_interval: 1s
+      start_period: 10s
       timeout: 3s
       retries: 20
 
