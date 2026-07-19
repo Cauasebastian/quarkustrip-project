@@ -43,8 +43,53 @@ Recursos ficam `HELD` por até 15 minutos. O pagamento ocorre antes da confirma�
 
 Requisitos: Docker Compose. O build das aplicações usa Java 21 e Node 24 dentro das imagens.
 
-```bash
-docker compose up --build
+O Compose usa profiles explícitos para impedir que toda a plataforma seja iniciada por engano:
+
+| Profile | Conteúdo |
+|---|---|
+| `core` | Gateway, Booking, Flight, Payment, UI, PostgreSQL, Redis, Kafka e Keycloak |
+| `full` | Tudo do `core`, mais Hotel, Transport, User, Notification, MongoDB e Mailpit |
+| `observability` | Jaeger |
+| `metrics` | Prometheus e Grafana |
+
+Para iniciar o fluxo mínimo em JVM:
+
+```powershell
+docker compose --profile core up -d --build
+```
+
+Para iniciar todo o produto em JVM, sem ferramentas extras:
+
+```powershell
+docker compose --profile full up -d --build
+```
+
+Um `docker compose up` sem profile não seleciona serviços. Para parar contêineres preservando os dados, use `docker compose down` sem `-v`.
+
+### Runtime nativo
+
+O profile Maven `native` compila somente `contracts`, Gateway, Booking, Flight, Payment e Notification. Hotel, Transport e User permanecem JVM por enquanto. O build é sequencial, executado pelo Mandrel em contêiner e limitado a 5 GiB de heap.
+
+Antes de compilar, pare a stack e execute o preflight:
+
+```powershell
+docker compose down
+.\scripts\check-native-prereqs.ps1
+mvn verify -Pnative
+```
+
+O build nativo pode demorar e precisa de aproximadamente 8 GB disponíveis no Docker e 8 GiB livres em disco. O preflight apenas verifica recursos: ele nunca remove volumes, imagens ou caches.
+
+Para iniciar o `core` usando os binários gerados:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.native.yml --profile core up -d --build
+```
+
+Para iniciar o produto completo, com os cinco serviços prioritários em modo nativo:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.native.yml --profile full up -d --build
 ```
 
 Se outro projeto ou uma instalação local já estiver usando as portas padrão, copie `.env.example` para `.env` antes de subir a stack. Isso altera somente as portas publicadas no Windows; a comunicação entre contêineres permanece isolada pelos nomes `postgres`, `mongodb`, `redis` e `kafka`.
@@ -56,10 +101,24 @@ Endereços locais:
 - Keycloak: `http://localhost:8180`
 - Mailpit: `http://localhost:8025`
 - Jaeger: `http://localhost:16686`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001`
 
 ## Observabilidade distribuída
 
-Os serviços enviam traces OTLP diretamente ao Jaeger. A stack local mantém até 10.000 traces em memória e limita o contêiner a 512 MB; os dados são descartados quando o Jaeger reinicia.
+Os serviços preservam e propagam o contexto distribuído mesmo no profile enxuto, mas o exporter OTLP fica desligado enquanto Jaeger não estiver selecionado. Para iniciar `core` com traces:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile core --profile observability up -d --build
+```
+
+No runtime nativo, inclua os três arquivos:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.native.yml -f docker-compose.observability.yml --profile core --profile observability up -d --build
+```
+
+A stack local mantém até 10.000 traces em memória e limita o Jaeger a 384 MiB; os dados são descartados quando o contêiner reinicia.
 
 Na interface do Jaeger:
 
@@ -69,15 +128,31 @@ Na interface do Jaeger:
 
 Como o armazenamento é efêmero, depois de recriar o contêiner faça uma requisição autenticada pela UI antes de pesquisar. Selecione `api-gateway-service`, mantenha o período em `Last Hour` e use `Find Traces`.
 
+## Métricas opcionais
+
+Os serviços Quarkus já expõem `/q/metrics`. Prometheus e Grafana permanecem parados até o profile `metrics` ser solicitado:
+
+```powershell
+docker compose --profile core --profile metrics up -d --build
+```
+
+Prometheus mantém no máximo seis horas ou 256 MB de dados efêmeros. O Grafana abre sem login em modo de leitura e provisiona o dashboard **Trip Platform - Runtime e Saga**. O acesso administrativo local usa `admin/admin`.
+
+Para executar tudo em runtime nativo com tracing e métricas:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.native.yml -f docker-compose.observability.yml --profile full --profile observability --profile metrics up -d --build
+```
+
 Para conferir se a plataforma está sendo executada pelo Docker antes de iniciar um serviço local:
 
 ```bash
-docker compose ps
+docker compose --profile full --profile observability --profile metrics ps
 ```
 
 Não execute o mesmo microsserviço simultaneamente no host e no Compose, pois ambos consumiriam o mesmo grupo Kafka. Para desenvolver apenas um serviço no host, pare primeiro o correspondente no Docker com `docker compose stop <serviço>`. PostgreSQL e MongoDB instalados no Windows não são usados pelos contêineres; dentro do Compose, os serviços se conectam pelos nomes `postgres` e `mongodb`.
 
-Para conferir quais portas foram efetivamente publicadas, use `docker compose ps`. Em uma execução com `.env.example`, a UI permanece em `http://localhost:3000` e o Gateway fica em `http://localhost:18080`. Se também alterar `TRIP_UI_HOST_PORT`, atualize os redirects e web origins do cliente no Keycloak.
+Para conferir quais portas foram efetivamente publicadas, use `docker compose --profile full ps`. Em uma execução com `.env.example`, a UI permanece em `http://localhost:3000` e o Gateway fica em `http://localhost:18080`. Se também alterar `TRIP_UI_HOST_PORT`, atualize os redirects e web origins do cliente no Keycloak.
 
 Usuários locais:
 
@@ -115,6 +190,21 @@ O módulo `trip-ui` participa do reactor Maven. O comando raiz instala Node/npm 
 mvn verify
 ```
 
+O build nativo seletivo é validado separadamente:
+
+```powershell
+mvn verify -Pnative
+```
+
+Para medir tempo até `healthy` e memória após 60 segundos de estabilização:
+
+```powershell
+.\scripts\measure-compose.ps1 -Profile core -Mode jvm
+.\scripts\measure-compose.ps1 -Profile core -Mode native -Observability
+```
+
+Os relatórios JSON e CSV são gravados em `target/performance` e não entram no Git. O medidor recria contêineres, mas não remove volumes.
+
 Também é possível validar apenas o frontend:
 
 ```bash
@@ -135,4 +225,4 @@ Os testes Playwright exigem a stack completa em execução.
 - Valores monetários usam `amountMinor`; referências de pagamento são tokenizadas.
 - Redis nunca é fonte de verdade para inventário.
 
-Os volumes são descartáveis nesta versão. Para recriar a estrutura local: `docker compose down -v`.
+Os volumes são descartáveis nesta versão. Use `docker compose down -v` somente quando quiser apagar deliberadamente bancos, tópicos e usuários locais.
