@@ -4,6 +4,7 @@
   "registrationAllowed": true,
   "loginWithEmailAllowed": true,
   "verifyEmail": false,
+  "defaultRoles": ["USER"],
   "roles": { "realm": [ { "name": "USER" }, { "name": "ADMIN" } ] },
   "clients": [
     {
