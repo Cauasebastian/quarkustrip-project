@@ -11,6 +11,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.hibernate.reactive.mutiny.Mutiny;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
@@ -98,24 +99,27 @@ public class FlightApplicationService {
                             && !request.bookingItemId().equals(seat.heldByItemId)) {
                         return failure(request, event, "SEAT_UNAVAILABLE");
                     }
-                    OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-                    seat.status = FlightSeat.Status.HELD;
-                    seat.heldByItemId = request.bookingItemId();
-                    FlightReservation reservation = new FlightReservation();
-                    reservation.id = UUID.randomUUID();
-                    reservation.bookingId = request.bookingId();
-                    reservation.bookingItemId = request.bookingItemId();
-                    reservation.userId = request.userId();
-                    reservation.flightId = request.resourceId();
-                    reservation.seatId = seat.id;
-                    reservation.seatNumber = seat.seatNumber;
-                    reservation.status = FlightReservation.Status.HELD;
-                    reservation.amountMinor = seat.flight.seatPriceMinor;
-                    reservation.currency = seat.flight.currency;
-                    reservation.holdUntil = request.holdUntil();
-                    reservation.createdAt = now;
-                    reservation.updatedAt = now;
-                    return reservations.persist(reservation).chain(() -> publish(reservation, event.eventId()));
+                    return Mutiny.fetch(seat.flight).chain(flight -> {
+                        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+                        seat.status = FlightSeat.Status.HELD;
+                        seat.heldByItemId = request.bookingItemId();
+                        FlightReservation reservation = new FlightReservation();
+                        reservation.id = UUID.randomUUID();
+                        reservation.bookingId = request.bookingId();
+                        reservation.bookingItemId = request.bookingItemId();
+                        reservation.userId = request.userId();
+                        reservation.flightId = request.resourceId();
+                        reservation.seatId = seat.id;
+                        reservation.seatNumber = seat.seatNumber;
+                        reservation.status = FlightReservation.Status.HELD;
+                        reservation.amountMinor = flight.seatPriceMinor;
+                        reservation.currency = flight.currency;
+                        reservation.holdUntil = request.holdUntil();
+                        reservation.createdAt = now;
+                        reservation.updatedAt = now;
+                        return reservations.persist(reservation)
+                                .chain(() -> publish(reservation, event.eventId()));
+                    });
                 });
     }
 

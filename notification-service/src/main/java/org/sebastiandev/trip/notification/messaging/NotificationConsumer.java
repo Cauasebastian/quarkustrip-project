@@ -5,6 +5,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.faulttolerance.Retry;
+import org.eclipse.microprofile.reactive.messaging.Acknowledgment;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.sebastiandev.trip.contracts.event.EventCodec;
@@ -20,6 +21,7 @@ public class NotificationConsumer {
     @Inject NotificationApplicationService service;
 
     @Incoming("user-profile-changed")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> profileChanged(Message<String> message) {
         EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.updateContact(event,
@@ -27,21 +29,25 @@ public class NotificationConsumer {
     }
 
     @Incoming("booking-confirmed")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> confirmed(Message<String> message) {
         return terminal(message);
     }
 
     @Incoming("booking-failed")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> failed(Message<String> message) {
         return terminal(message);
     }
 
     @Incoming("booking-cancelled")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> cancelled(Message<String> message) {
         return terminal(message);
     }
 
     @Incoming("booking-manual-review")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> manualReview(Message<String> message) {
         return terminal(message);
     }

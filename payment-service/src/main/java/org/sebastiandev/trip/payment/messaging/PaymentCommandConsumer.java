@@ -5,6 +5,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.faulttolerance.Retry;
+import org.eclipse.microprofile.reactive.messaging.Acknowledgment;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 import org.sebastiandev.trip.contracts.event.EventCodec;
@@ -20,12 +21,14 @@ public class PaymentCommandConsumer {
     @Inject PaymentApplicationService service;
 
     @Incoming("process-payment")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> processPayment(Message<String> message) {
         EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.charge(event, EventCodec.payload(mapper, event, EventPayloads.PaymentRequested.class));
     }
 
     @Incoming("refund-payment")
+    @Acknowledgment(Acknowledgment.Strategy.POST_PROCESSING)
     public Uni<Void> refund(Message<String> message) {
         EventEnvelope event = EventSchemaValidator.decodeValidated(mapper, message.getPayload());
         return service.refund(event, EventCodec.payload(mapper, event, EventPayloads.RefundRequested.class));
