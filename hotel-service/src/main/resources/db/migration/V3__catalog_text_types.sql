@@ -1,0 +1,1 @@
+ALTER TABLE hotels ALTER COLUMN country TYPE VARCHAR(2);

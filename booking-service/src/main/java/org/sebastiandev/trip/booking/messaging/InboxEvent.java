@@ -11,6 +11,7 @@ import java.util.UUID;
 @Table(name = "inbox_events")
 public class InboxEvent {
     @Id
+    @Column(name = "event_id")
     public UUID eventId;
     @Column(nullable = false)
     public String type;
