@@ -1,6 +1,7 @@
 package org.sebastiandev.trip.booking.service;
 
 import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,6 +19,7 @@ public class SagaTimeoutMonitor {
     @Inject BookingApplicationService service;
 
     @Scheduled(every = "5s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @WithSession
     Uni<Void> expire() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         return bookings.find("status not in (?1, ?2, ?3, ?4) and (stepDeadline < ?5 or sagaDeadline < ?5)",

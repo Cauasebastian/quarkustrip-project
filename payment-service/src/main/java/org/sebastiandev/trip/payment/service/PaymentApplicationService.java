@@ -1,6 +1,7 @@
 package org.sebastiandev.trip.payment.service;
 
 import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
@@ -80,6 +81,7 @@ public class PaymentApplicationService {
                 })));
     }
 
+    @WithSession
     public Uni<Payment> getByBookingId(UUID bookingId) {
         return payments.find("bookingId", bookingId).firstResult();
     }

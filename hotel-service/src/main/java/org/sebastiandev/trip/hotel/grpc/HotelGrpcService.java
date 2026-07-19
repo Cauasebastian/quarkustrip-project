@@ -1,13 +1,13 @@
 package org.sebastiandev.trip.hotel.grpc;
 
-import io.grpc.Status; import io.quarkus.grpc.GrpcService; import io.quarkus.hibernate.reactive.panache.Panache; import io.smallrye.mutiny.Uni; import jakarta.inject.Inject;
+import io.grpc.Status; import io.quarkus.grpc.GrpcService; import io.quarkus.hibernate.reactive.panache.Panache; import io.quarkus.hibernate.reactive.panache.common.WithSession; import io.smallrye.mutiny.Uni; import jakarta.inject.Inject;
 import java.time.LocalDate; import java.util.*; import org.sebastiandev.trip.contracts.grpc.*; import org.sebastiandev.trip.hotel.domain.*; import org.sebastiandev.trip.hotel.repository.*;
 import org.hibernate.reactive.mutiny.Mutiny;
 
 @GrpcService public class HotelGrpcService implements HotelQueryService {
  @Inject HotelRepository hotels; @Inject RoomRepository rooms; @Inject HotelReservationRepository reservations; @Inject Mutiny.SessionFactory sessionFactory;
- @Override public Uni<SearchHotelsResponse> searchHotels(SearchHotelsRequest request){return hotels.find("lower(city) = ?1 and upper(country) = ?2",request.getCity().toLowerCase(),request.getCountry().toUpperCase()).list().map(values->SearchHotelsResponse.newBuilder().addAllHotels(values.stream().map(this::hotelView).toList()).build());}
- @Override public Uni<GetRoomResponse> getRoom(GetRoomRequest request){try{UUID id=UUID.fromString(request.getRoomId());LocalDate in=date(request.getCheckIn()),out=date(request.getCheckOut());return rooms.findById(id).onItem().ifNull().failWith(Status.NOT_FOUND.asRuntimeException()).chain(room->reservations.count("roomId = ?1 and status in (?2, ?3) and checkIn < ?4 and checkOut > ?5",id,HotelReservation.Status.HELD,HotelReservation.Status.CONFIRMED,out,in).map(count->GetRoomResponse.newBuilder().setRoom(roomView(room,count==0)).build()));}catch(RuntimeException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.asRuntimeException());}}
+ @Override @WithSession public Uni<SearchHotelsResponse> searchHotels(SearchHotelsRequest request){return hotels.find("lower(city) = ?1 and upper(country) = ?2",request.getCity().toLowerCase(),request.getCountry().toUpperCase()).list().map(values->SearchHotelsResponse.newBuilder().addAllHotels(values.stream().map(this::hotelView).toList()).build());}
+ @Override @WithSession public Uni<GetRoomResponse> getRoom(GetRoomRequest request){try{UUID id=UUID.fromString(request.getRoomId());LocalDate in=date(request.getCheckIn()),out=date(request.getCheckOut());return rooms.findById(id).onItem().ifNull().failWith(Status.NOT_FOUND.asRuntimeException()).chain(room->reservations.count("roomId = ?1 and status in (?2, ?3) and checkIn < ?4 and checkOut > ?5",id,HotelReservation.Status.HELD,HotelReservation.Status.CONFIRMED,out,in).map(count->GetRoomResponse.newBuilder().setRoom(roomView(room,count==0)).build()));}catch(RuntimeException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.asRuntimeException());}}
  @Override public Uni<ListRoomsResponse> listRooms(ListRoomsRequest request){
   try{
    UUID hotelId=UUID.fromString(request.getHotelId());LocalDate in=date(request.getCheckIn()),out=date(request.getCheckOut());

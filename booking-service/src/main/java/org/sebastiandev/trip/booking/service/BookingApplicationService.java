@@ -3,6 +3,7 @@ package org.sebastiandev.trip.booking.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
@@ -113,6 +114,7 @@ public class BookingApplicationService {
                 .replaceWith(booking);
     }
 
+    @WithSession
     public Uni<Booking> get(UUID id, UUID requesterId, boolean admin) {
         return repository.findById(id).onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
                 .invoke(booking -> {
@@ -120,6 +122,7 @@ public class BookingApplicationService {
                 });
     }
 
+    @WithSession
     public Uni<BookingPage> list(UUID userId, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
@@ -271,7 +274,10 @@ public class BookingApplicationService {
                     item.status = BookingItemStatus.HELD;
                     item.reservationId = payload.reservationId();
                     item.amountMinor = payload.amountMinor();
-                    if (booking.status == BookingStatus.COMPENSATING) {
+                    if (booking.status == BookingStatus.COMPENSATING
+                            || booking.status == BookingStatus.CANCELLED
+                            || booking.status == BookingStatus.FAILED
+                            || booking.status == BookingStatus.MANUAL_REVIEW) {
                         return outbox.enqueue(topic(item.type, "cancel"), booking.id, envelope.eventId(),
                                 new EventPayloads.ReservationAction(booking.id, item.id, item.reservationId))
                                 .replaceWithVoid();

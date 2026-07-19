@@ -3,6 +3,7 @@ package org.sebastiandev.trip.flight.grpc;
 import io.grpc.Status;
 import io.quarkus.grpc.GrpcService;
 import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import java.time.Instant;
@@ -31,6 +32,7 @@ public class FlightGrpcService implements FlightQueryService {
     @Inject FlightSeatRepository seats;
 
     @Override
+    @WithSession
     public Uni<SearchFlightsResponse> searchFlights(SearchFlightsRequest request) {
         return flights.find("upper(origin) = ?1 and upper(destination) = ?2 and departureTime >= ?3",
                         request.getOrigin().toUpperCase(), request.getDestination().toUpperCase(),
@@ -39,6 +41,7 @@ public class FlightGrpcService implements FlightQueryService {
     }
 
     @Override
+    @WithSession
     public Uni<GetFlightResponse> getFlight(GetFlightRequest request) {
         try {
             return flights.findById(UUID.fromString(request.getFlightId()))
