@@ -151,7 +151,7 @@ public class BookingApplicationService {
                     Context.current(), sagaContext);
             cancelSpan.setAttribute("booking.id", booking.id.toString());
             cancelSpan.setAttribute("compensation.reason", compensationReason);
-            return TraceContextSupport.inContext(sagaContext,
+            return TraceContextSupport.inContext(cancelSpan,
                             () -> startCompensation(booking, compensationReason, null))
                     .replaceWith(booking)
                     .onItemOrFailure().invoke((ignored, failure) -> {
@@ -218,10 +218,14 @@ public class BookingApplicationService {
             span.setAttribute("saga.state", BookingStatus.COMPENSATING.name());
             span.setAttribute("compensation.reason", reason);
         }, ignored -> {
+            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
             booking.status = BookingStatus.COMPENSATING;
             booking.failureCode = reason;
-            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
-            booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+            booking.stepDeadline = now.plusSeconds(60);
+            if (booking.cancellationRequested) {
+                booking.sagaDeadline = now.plusMinutes(5);
+            }
+            booking.updatedAt = now;
             metrics.compensation();
             Uni<Void> chain = Uni.createFrom().voidItem();
             for (BookingItem item : booking.items) {
