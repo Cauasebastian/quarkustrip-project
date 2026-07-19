@@ -1,7 +1,9 @@
 {
   "realm": "trip",
   "enabled": true,
-  "registrationAllowed": false,
+  "registrationAllowed": true,
+  "loginWithEmailAllowed": true,
+  "verifyEmail": false,
   "roles": { "realm": [ { "name": "USER" }, { "name": "ADMIN" } ] },
   "clients": [
     {

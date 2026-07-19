@@ -67,6 +67,8 @@ Na interface do Jaeger:
 - `Dependencies` calcula o grafo entre serviços a partir dos traces mantidos em memória.
 - Os atributos `booking.id`, `event.id`, `saga.state`, `payment.operation` e `compensation.reason` permitem filtrar uma execução específica.
 
+Como o armazenamento é efêmero, depois de recriar o contêiner faça uma requisição autenticada pela UI antes de pesquisar. Selecione `api-gateway-service`, mantenha o período em `Last Hour` e use `Find Traces`.
+
 Para conferir se a plataforma está sendo executada pelo Docker antes de iniciar um serviço local:
 
 ```bash
@@ -81,6 +83,8 @@ Usuários locais:
 
 - `demo/demo`: role `USER`.
 - `admin/admin`: roles `USER` e `ADMIN`.
+
+O cadastro de novos usuários está disponível pelo link **Register** aberto a partir da UI. A URL `/admin` do Keycloak pertence ao console administrativo do realm `master` e não oferece cadastro de clientes da aplicação.
 
 ## Desenvolvimento da UI
 
