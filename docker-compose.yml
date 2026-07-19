@@ -7,8 +7,6 @@ x-app-common: &app-common
       condition: service_healthy
     kafka:
       condition: service_healthy
-    jaeger:
-      condition: service_healthy
   environment: &app-environment
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
@@ -21,6 +19,7 @@ x-app-common: &app-common
 
 services:
   postgres:
+    profiles: ["core", "full"]
     image: postgres:16.8-alpine
     environment:
       POSTGRES_USER: postgres
@@ -37,6 +36,7 @@ services:
       retries: 20
 
   mongodb:
+    profiles: ["full"]
     image: mongo:7.0.17
     ports: ["${MONGODB_HOST_PORT:-27017}:27017"]
     volumes:
@@ -49,6 +49,7 @@ services:
       retries: 20
 
   redis:
+    profiles: ["core", "full"]
     image: redis:7.4.2-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports: ["${REDIS_HOST_PORT:-6379}:6379"]
@@ -60,6 +61,7 @@ services:
       retries: 20
 
   kafka:
+    profiles: ["core", "full"]
     image: apache/kafka:3.9.1
     ports: ["9092:9092"]
     environment:
@@ -83,6 +85,7 @@ services:
       retries: 30
 
   keycloak:
+    profiles: ["core", "full"]
     image: quay.io/keycloak/keycloak:26.1.4
     command: ["start-dev", "--import-realm", "--health-enabled=true"]
     environment:
@@ -105,6 +108,7 @@ services:
       retries: 30
 
   mailpit:
+    profiles: ["full"]
     image: axllent/mailpit:v1.24.0
     ports: ["1025:1025", "8025:8025"]
     healthcheck:
@@ -114,6 +118,7 @@ services:
       retries: 20
 
   jaeger:
+    profiles: ["observability"]
     image: jaegertracing/jaeger:2.19.0
     command: ["--config", "/etc/jaeger/config.yaml"]
     mem_limit: 512m
@@ -131,6 +136,7 @@ services:
       retries: 20
 
   booking-service:
+    profiles: ["core", "full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: booking-service } }
     environment:
@@ -144,6 +150,7 @@ services:
       retries: 30
 
   flight-service:
+    profiles: ["core", "full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: flight-service } }
     environment:
@@ -154,6 +161,7 @@ services:
     healthcheck: *app-health
 
   hotel-service:
+    profiles: ["full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: hotel-service } }
     environment:
@@ -164,6 +172,7 @@ services:
     healthcheck: *app-health
 
   transport-service:
+    profiles: ["full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: transport-service } }
     environment:
@@ -174,6 +183,7 @@ services:
     healthcheck: *app-health
 
   payment-service:
+    profiles: ["core", "full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: payment-service } }
     environment:
@@ -183,6 +193,7 @@ services:
     healthcheck: *app-health
 
   user-service:
+    profiles: ["full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: user-service } }
     environment:
@@ -192,6 +203,7 @@ services:
     healthcheck: *app-health
 
   notification-service:
+    profiles: ["full"]
     <<: *app-common
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: notification-service } }
     environment:
@@ -203,10 +215,10 @@ services:
       kafka: { condition: service_healthy }
       mongodb: { condition: service_healthy }
       mailpit: { condition: service_healthy }
-      jaeger: { condition: service_healthy }
     healthcheck: *app-health
 
   api-gateway-service:
+    profiles: ["core", "full"]
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: api-gateway-service } }
     restart: unless-stopped
     ports: ["${GATEWAY_HOST_PORT:-8080}:8080"]
@@ -229,13 +241,10 @@ services:
       redis: { condition: service_healthy }
       booking-service: { condition: service_healthy }
       flight-service: { condition: service_healthy }
-      hotel-service: { condition: service_healthy }
-      transport-service: { condition: service_healthy }
-      user-service: { condition: service_healthy }
-      jaeger: { condition: service_healthy }
     healthcheck: *app-health
 
   trip-ui:
+    profiles: ["core", "full"]
     build:
       context: ./trip-ui
       args:

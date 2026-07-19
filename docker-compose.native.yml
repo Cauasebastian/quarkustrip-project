@@ -1,0 +1,30 @@
+services:
+  api-gateway-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.native
+      args: { MODULE: api-gateway-service }
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.native
+      args: { MODULE: booking-service }
+
+  flight-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.native
+      args: { MODULE: flight-service }
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.native
+      args: { MODULE: payment-service }
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.native
+      args: { MODULE: notification-service }
