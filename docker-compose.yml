@@ -11,6 +11,7 @@ x-app-common: &app-common
   environment: &app-environment
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+    QUARKUS_OTEL_EXPORTER_OTLP_ENABLED: "false"
     QUARKUS_OTEL_TRACES_SAMPLER: parentbased_always_on
     QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
     QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"
@@ -164,6 +165,51 @@ services:
       timeout: 5s
       retries: 20
 
+  prometheus:
+    profiles: ["metrics"]
+    image: prom/prometheus:v3.13.1
+    mem_limit: 256m
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=6h
+      - --storage.tsdb.retention.size=256MB
+    ports: ["9090:9090"]
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      start_interval: 1s
+      start_period: 10s
+      timeout: 5s
+      retries: 20
+
+  grafana:
+    profiles: ["metrics"]
+    image: grafana/grafana:13.0.2
+    mem_limit: 256m
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports: ["3001:3000"]
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null"]
+      interval: 10s
+      start_interval: 1s
+      start_period: 15s
+      timeout: 5s
+      retries: 20
+
   booking-service:
     profiles: ["core", "full"]
     <<: *app-common
@@ -264,6 +310,7 @@ services:
       TRANSPORT_GRPC_HOST: transport-service
       USER_GRPC_HOST: user-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      QUARKUS_OTEL_EXPORTER_OTLP_ENABLED: "false"
       QUARKUS_OTEL_TRACES_SAMPLER: parentbased_always_on
       QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
       QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"

@@ -1,0 +1,44 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: api-gateway-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["api-gateway-service:8080"]
+
+  - job_name: booking-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["booking-service:8080"]
+
+  - job_name: flight-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["flight-service:8080"]
+
+  - job_name: payment-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["payment-service:8080"]
+
+  - job_name: hotel-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["hotel-service:8080"]
+
+  - job_name: transport-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["transport-service:8080"]
+
+  - job_name: notification-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["notification-service:8080"]
+
+  - job_name: user-service
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["user-service:8080"]
