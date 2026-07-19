@@ -25,6 +25,10 @@
       "username": "demo",
       "enabled": true,
       "email": "demo@trip.local",
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "User",
+      "requiredActions": [],
       "credentials": [{ "type": "password", "value": "demo", "temporary": false }],
       "realmRoles": ["USER"]
     },
@@ -32,6 +36,10 @@
       "username": "admin",
       "enabled": true,
       "email": "admin@trip.local",
+      "emailVerified": true,
+      "firstName": "Trip",
+      "lastName": "Admin",
+      "requiredActions": [],
       "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
       "realmRoles": ["USER", "ADMIN"]
     }

@@ -75,7 +75,7 @@ docker compose ps
 
 Não execute o mesmo microsserviço simultaneamente no host e no Compose, pois ambos consumiriam o mesmo grupo Kafka. Para desenvolver apenas um serviço no host, pare primeiro o correspondente no Docker com `docker compose stop <serviço>`. PostgreSQL e MongoDB instalados no Windows não são usados pelos contêineres; dentro do Compose, os serviços se conectam pelos nomes `postgres` e `mongodb`.
 
-Para conferir quais portas foram efetivamente publicadas, use `docker compose ps`. Em uma execução com `.env.example`, a UI fica em `http://localhost:13000` e o Gateway em `http://localhost:18080`.
+Para conferir quais portas foram efetivamente publicadas, use `docker compose ps`. Em uma execução com `.env.example`, a UI permanece em `http://localhost:3000` e o Gateway fica em `http://localhost:18080`. Se também alterar `TRIP_UI_HOST_PORT`, atualize os redirects e web origins do cliente no Keycloak.
 
 Usuários locais:
 
