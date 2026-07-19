@@ -9,19 +9,6 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <modules>
-        <module>contracts</module>
-        <module>api-gateway-service</module>
-        <module>booking-service</module>
-        <module>flight-service</module>
-        <module>hotel-service</module>
-        <module>transport-service</module>
-        <module>payment-service</module>
-        <module>notification-service</module>
-        <module>user-service</module>
-        <module>trip-ui</module>
-    </modules>
-
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -113,11 +100,42 @@
 
     <profiles>
         <profile>
+            <id>jvm-reactor</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <modules>
+                <module>contracts</module>
+                <module>api-gateway-service</module>
+                <module>booking-service</module>
+                <module>flight-service</module>
+                <module>hotel-service</module>
+                <module>transport-service</module>
+                <module>payment-service</module>
+                <module>notification-service</module>
+                <module>user-service</module>
+                <module>trip-ui</module>
+            </modules>
+        </profile>
+        <profile>
             <id>native</id>
-            <activation><property><name>native</name></property></activation>
+            <modules>
+                <module>contracts</module>
+                <module>api-gateway-service</module>
+                <module>booking-service</module>
+                <module>flight-service</module>
+                <module>payment-service</module>
+                <module>notification-service</module>
+            </modules>
             <properties>
                 <skipITs>false</skipITs>
+                <skip.frontend>true</skip.frontend>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
+                <quarkus.native.container-build>true</quarkus.native.container-build>
+                <quarkus.native.builder-image>mandrel</quarkus.native.builder-image>
+                <quarkus.native.builder-image.pull>missing</quarkus.native.builder-image.pull>
+                <quarkus.native.native-image-xmx>5g</quarkus.native.native-image-xmx>
+                <quarkus.native.march>compatibility</quarkus.native.march>
             </properties>
         </profile>
     </profiles>
