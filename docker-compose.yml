@@ -2,6 +2,7 @@ name: quarkus-trip
 
 x-app-common: &app-common
   restart: unless-stopped
+  mem_limit: 448m
   depends_on:
     postgres:
       condition: service_healthy
@@ -16,11 +17,17 @@ x-app-common: &app-common
     QUARKUS_OTEL_INSTRUMENT_REST: "true"
     JSON_LOGS: "true"
     QUARKUS_HTTP_PORT: 8080
+    JAVA_OPTS: >-
+      -Xms32m -Xmx192m -XX:+UseSerialGC
+      -Dquarkus.http.host=0.0.0.0
+      -Djava.util.logging.manager=org.jboss.logmanager.LogManager
 
 services:
   postgres:
     profiles: ["core", "full"]
     image: postgres:16.8-alpine
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=100"]
+    mem_limit: 384m
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -38,6 +45,8 @@ services:
   mongodb:
     profiles: ["full"]
     image: mongo:7.0.17
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.25"]
+    mem_limit: 512m
     ports: ["${MONGODB_HOST_PORT:-27017}:27017"]
     volumes:
       - mongo_data:/data/db
@@ -51,7 +60,8 @@ services:
   redis:
     profiles: ["core", "full"]
     image: redis:7.4.2-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    mem_limit: 96m
     ports: ["${REDIS_HOST_PORT:-6379}:6379"]
     volumes: ["redis_data:/data"]
     healthcheck:
@@ -63,6 +73,7 @@ services:
   kafka:
     profiles: ["core", "full"]
     image: apache/kafka:3.9.1
+    mem_limit: 768m
     ports: ["9092:9092"]
     environment:
       KAFKA_NODE_ID: 1
@@ -77,6 +88,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
     volumes: ["kafka_data:/var/lib/kafka/data"]
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
@@ -87,6 +99,7 @@ services:
   keycloak:
     profiles: ["core", "full"]
     image: quay.io/keycloak/keycloak:26.1.4
+    mem_limit: 768m
     command: ["start-dev", "--import-realm", "--health-enabled=true"]
     environment:
       KC_DB: postgres
@@ -95,6 +108,7 @@ services:
       KC_DB_PASSWORD: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      JAVA_OPTS_KC_HEAP: "-XX:InitialRAMPercentage=25 -XX:MaxRAMPercentage=60"
     ports: ["8180:8080"]
     volumes:
       - ./infra/keycloak/trip-realm.json:/opt/keycloak/data/import/trip-realm.json:ro
@@ -110,6 +124,7 @@ services:
   mailpit:
     profiles: ["full"]
     image: axllent/mailpit:v1.24.0
+    mem_limit: 128m
     ports: ["1025:1025", "8025:8025"]
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
@@ -121,7 +136,7 @@ services:
     profiles: ["observability"]
     image: jaegertracing/jaeger:2.19.0
     command: ["--config", "/etc/jaeger/config.yaml"]
-    mem_limit: 512m
+    mem_limit: 384m
     ports:
       - "16686:16686"
       - "4317:4317"
@@ -221,6 +236,7 @@ services:
     profiles: ["core", "full"]
     build: { context: ., dockerfile: Dockerfile, args: { MODULE: api-gateway-service } }
     restart: unless-stopped
+    mem_limit: 448m
     ports: ["${GATEWAY_HOST_PORT:-8080}:8080"]
     environment:
       OIDC_AUTH_SERVER_URL: http://keycloak:8080/realms/trip
@@ -236,6 +252,10 @@ services:
       QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
       QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"
       QUARKUS_OTEL_INSTRUMENT_REST: "true"
+      JAVA_OPTS: >-
+        -Xms32m -Xmx192m -XX:+UseSerialGC
+        -Dquarkus.http.host=0.0.0.0
+        -Djava.util.logging.manager=org.jboss.logmanager.LogManager
     depends_on:
       keycloak: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -254,6 +274,7 @@ services:
         VITE_KEYCLOAK_CLIENT_ID: trip-gateway
         VITE_SHOW_DEV_CREDENTIALS: "true"
     restart: unless-stopped
+    mem_limit: 64m
     ports: ["${TRIP_UI_HOST_PORT:-3000}:3000"]
     depends_on:
       api-gateway-service: { condition: service_healthy }

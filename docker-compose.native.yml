@@ -1,29 +1,34 @@
 services:
   api-gateway-service:
+    mem_limit: 192m
     build:
       context: .
       dockerfile: Dockerfile.native
       args: { MODULE: api-gateway-service }
 
   booking-service:
+    mem_limit: 256m
     build:
       context: .
       dockerfile: Dockerfile.native
       args: { MODULE: booking-service }
 
   flight-service:
+    mem_limit: 256m
     build:
       context: .
       dockerfile: Dockerfile.native
       args: { MODULE: flight-service }
 
   payment-service:
+    mem_limit: 192m
     build:
       context: .
       dockerfile: Dockerfile.native
       args: { MODULE: payment-service }
 
   notification-service:
+    mem_limit: 192m
     build:
       context: .
       dockerfile: Dockerfile.native
