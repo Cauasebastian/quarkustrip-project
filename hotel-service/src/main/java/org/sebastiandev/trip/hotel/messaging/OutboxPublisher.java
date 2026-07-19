@@ -1,6 +1,7 @@
 package org.sebastiandev.trip.hotel.messaging;
 
 import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.MutinyEmitter;
@@ -22,7 +23,8 @@ public class OutboxPublisher {
     @Inject OutboxRepository repository;
     @Inject @Channel("outbox") MutinyEmitter<String> emitter;
 
-    @Scheduled(every = "1s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "1s", delayed = "10s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @WithSession
     Uni<Void> publish() {
         return repository.find("publishedAt is null order by createdAt").page(0, 50).list().chain(this::publishBatch);
     }
@@ -38,7 +40,7 @@ public class OutboxPublisher {
                 event.aggregateId, event.topic, event.attempts + 1, event.createdAt.toInstant(),
                 new TraceContextSnapshot(event.traceParent, event.traceState));
         Message<String> message = KafkaRecord.of(event.topic, event.aggregateId.toString(), event.payload)
-                .addMetadata(TracingMetadata.withPrevious(trace.context()));
+                .addMetadata(TracingMetadata.withCurrent(trace.context()));
         return emitter.sendMessage(message).onItemOrFailure().invoke((ignored, failure) -> trace.finish(failure))
                 .chain(() -> markPublished(event)).onFailure().call(() -> incrementAttempts(event));
     }
