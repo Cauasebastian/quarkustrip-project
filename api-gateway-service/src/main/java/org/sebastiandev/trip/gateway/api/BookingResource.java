@@ -1,7 +1,6 @@
 package org.sebastiandev.trip.gateway.api;
 
 import com.google.protobuf.Timestamp;
-import io.quarkus.grpc.GrpcClient;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
@@ -36,17 +35,17 @@ import org.sebastiandev.trip.contracts.grpc.HotelItemRequest;
 import org.sebastiandev.trip.contracts.grpc.ListUserBookingsRequest;
 import org.sebastiandev.trip.contracts.grpc.LocalDateValue;
 import org.sebastiandev.trip.contracts.grpc.Money;
-import org.sebastiandev.trip.contracts.grpc.MutinyBookingCommandServiceGrpc;
 import org.sebastiandev.trip.contracts.grpc.TransportItemRequest;
 import org.sebastiandev.trip.gateway.security.CurrentUser;
 import org.sebastiandev.trip.gateway.observability.BookingObservabilityService;
+import org.sebastiandev.trip.gateway.service.BookingGatewayService;
 
 @Path("/api/v1/bookings")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Authenticated
 public class BookingResource {
-    @Inject @GrpcClient("booking") MutinyBookingCommandServiceGrpc.MutinyBookingCommandServiceStub booking;
+    @Inject BookingGatewayService booking;
     @Inject CurrentUser user;
     @Inject BookingObservabilityService observability;
 
@@ -63,7 +62,7 @@ public class BookingResource {
                 .setCurrency(body.currency().toUpperCase())
                 .setPaymentMethodRef(body.paymentMethodRef());
         body.items().forEach(item -> request.addItems(item(item)));
-        return booking.createBooking(request.build()).map(result -> {
+        return booking.create(request.build()).map(result -> {
             URI location = uri.getAbsolutePathBuilder().path(result.getBookingId()).build();
             var response = new BookingApiModels.BookingCreated(
                     result.getBookingId(), result.getStatus().name(), location.toString());
@@ -77,7 +76,7 @@ public class BookingResource {
             @QueryParam("size") @DefaultValue("20") int size) {
         if (page < 0) throw new BadRequestException("page must be zero or greater");
         if (size < 1 || size > 100) throw new BadRequestException("size must be between 1 and 100");
-        return booking.listUserBookings(ListUserBookingsRequest.newBuilder()
+        return booking.list(ListUserBookingsRequest.newBuilder()
                         .setUserId(user.id().toString()).setPage(page).setSize(size).build())
                 .map(result -> new BookingApiModels.BookingPage(
                         result.getBookingsList().stream().map(this::view).toList(),
@@ -89,7 +88,7 @@ public class BookingResource {
     @GET
     @Path("/{id}")
     public Uni<BookingApiModels.BookingSummary> get(@PathParam("id") String id) {
-        return booking.getBooking(GetBookingRequest.newBuilder()
+        return booking.get(GetBookingRequest.newBuilder()
                         .setBookingId(id).setRequesterUserId(user.id().toString()).setAdmin(user.admin()).build())
                 .map(result -> view(result.getBooking()));
     }
@@ -105,7 +104,7 @@ public class BookingResource {
     public Uni<Response> cancel(@PathParam("id") String id, BookingApiModels.Cancel body) {
         String reason = body == null || body.reason() == null || body.reason().isBlank()
                 ? "USER_CANCELLED" : body.reason();
-        return booking.cancelBooking(CancelBookingRequest.newBuilder()
+        return booking.cancel(CancelBookingRequest.newBuilder()
                         .setBookingId(id).setRequesterUserId(user.id().toString()).setAdmin(user.admin())
                         .setReason(reason).build())
                 .map(result -> Response.accepted(new BookingApiModels.BookingCancelled(

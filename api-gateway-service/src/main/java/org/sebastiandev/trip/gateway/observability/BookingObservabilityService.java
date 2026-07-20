@@ -2,7 +2,6 @@ package org.sebastiandev.trip.gateway.observability;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import io.quarkus.grpc.GrpcClient;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -10,22 +9,21 @@ import jakarta.ws.rs.WebApplicationException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.sebastiandev.trip.contracts.grpc.BookingView;
 import org.sebastiandev.trip.contracts.grpc.GetBookingRequest;
-import org.sebastiandev.trip.contracts.grpc.MutinyBookingCommandServiceGrpc;
 import org.sebastiandev.trip.gateway.api.BookingObservabilityModels;
+import org.sebastiandev.trip.gateway.service.BookingGatewayService;
 
 @ApplicationScoped
 public class BookingObservabilityService {
-    @Inject @GrpcClient("booking") MutinyBookingCommandServiceGrpc.MutinyBookingCommandServiceStub booking;
-    @Inject @RestClient JaegerQueryClient jaeger;
+    @Inject BookingGatewayService booking;
+    @Inject JaegerGatewayService jaeger;
     @Inject JaegerTraceParser parser;
 
     public Uni<BookingObservabilityModels.Summary> get(String bookingId, UUID requesterId, boolean admin) {
         GetBookingRequest request = GetBookingRequest.newBuilder().setBookingId(bookingId)
                 .setRequesterUserId(requesterId.toString()).setAdmin(admin).build();
-        return booking.getBooking(request).chain(response -> summarize(response.getBooking()));
+        return booking.get(request).chain(response -> summarize(response.getBooking()));
     }
 
     private Uni<BookingObservabilityModels.Summary> summarize(BookingView value) {

@@ -2,7 +2,6 @@ package org.sebastiandev.trip.gateway.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Timestamp;
-import io.quarkus.grpc.GrpcClient;
 import io.quarkus.security.Authenticated;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -30,23 +29,19 @@ import org.sebastiandev.trip.contracts.grpc.HotelView;
 import org.sebastiandev.trip.contracts.grpc.ListRoomsRequest;
 import org.sebastiandev.trip.contracts.grpc.LocalDateValue;
 import org.sebastiandev.trip.contracts.grpc.Money;
-import org.sebastiandev.trip.contracts.grpc.MutinyFlightQueryServiceGrpc;
-import org.sebastiandev.trip.contracts.grpc.MutinyHotelQueryServiceGrpc;
-import org.sebastiandev.trip.contracts.grpc.MutinyTransportQueryServiceGrpc;
 import org.sebastiandev.trip.contracts.grpc.RoomView;
 import org.sebastiandev.trip.contracts.grpc.SearchFlightsRequest;
 import org.sebastiandev.trip.contracts.grpc.SearchHotelsRequest;
 import org.sebastiandev.trip.contracts.grpc.SearchTransportsRequest;
 import org.sebastiandev.trip.contracts.grpc.TransportView;
+import org.sebastiandev.trip.gateway.service.CatalogGatewayService;
 
 @Path("/api/v1/catalog")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Authenticated
 public class CatalogResource {
-    @Inject @GrpcClient("flight") MutinyFlightQueryServiceGrpc.MutinyFlightQueryServiceStub flights;
-    @Inject @GrpcClient("hotel") MutinyHotelQueryServiceGrpc.MutinyHotelQueryServiceStub hotels;
-    @Inject @GrpcClient("transport") MutinyTransportQueryServiceGrpc.MutinyTransportQueryServiceStub transports;
+    @Inject CatalogGatewayService catalog;
     @Inject ObjectMapper objectMapper;
 
     @GET
@@ -60,7 +55,7 @@ public class CatalogResource {
             throw new BadRequestException("origin and destination must be three-letter codes");
         }
         OffsetDateTime departure = after == null ? OffsetDateTime.now(ZoneOffset.UTC) : after;
-        return flights.searchFlights(SearchFlightsRequest.newBuilder()
+        return catalog.searchFlights(SearchFlightsRequest.newBuilder()
                         .setOrigin(origin.toUpperCase()).setDestination(destination.toUpperCase())
                         .setDepartsAfter(timestamp(departure)).build())
                 .map(result -> new CatalogApiModels.Flights(
@@ -74,7 +69,7 @@ public class CatalogResource {
         if (!body.arrivalTime().isAfter(body.departureTime())) {
             throw new BadRequestException("arrivalTime must be after departureTime");
         }
-        return flights.createFlight(CreateFlightRequest.newBuilder()
+        return catalog.createFlight(CreateFlightRequest.newBuilder()
                         .setFlightNumber(body.flightNumber()).setOrigin(body.origin().toUpperCase())
                         .setDestination(body.destination().toUpperCase())
                         .setDepartureTime(timestamp(body.departureTime())).setArrivalTime(timestamp(body.arrivalTime()))
@@ -90,7 +85,7 @@ public class CatalogResource {
             @QueryParam("checkIn") LocalDate checkIn,
             @QueryParam("checkOut") LocalDate checkOut) {
         requireStay(city, country, checkIn, checkOut);
-        return hotels.searchHotels(SearchHotelsRequest.newBuilder().setCity(city)
+        return catalog.searchHotels(SearchHotelsRequest.newBuilder().setCity(city)
                         .setCountry(country.toUpperCase()).setCheckIn(date(checkIn)).setCheckOut(date(checkOut)).build())
                 .map(result -> new CatalogApiModels.Hotels(
                         result.getHotelsList().stream().map(this::hotel).toList()));
@@ -105,7 +100,7 @@ public class CatalogResource {
         if (checkIn == null || checkOut == null || !checkOut.isAfter(checkIn)) {
             throw new BadRequestException("a valid [checkIn, checkOut) interval is required");
         }
-        return hotels.listRooms(ListRoomsRequest.newBuilder().setHotelId(hotelId)
+        return catalog.listRooms(ListRoomsRequest.newBuilder().setHotelId(hotelId)
                         .setCheckIn(date(checkIn)).setCheckOut(date(checkOut)).build())
                 .map(result -> new CatalogApiModels.Rooms(
                         result.getRoomsList().stream().map(this::room).toList()));
@@ -115,7 +110,7 @@ public class CatalogResource {
     @Path("/hotels")
     @RolesAllowed("ADMIN")
     public Uni<CatalogApiModels.Hotel> createHotel(@Valid CatalogApiModels.CreateHotel body) {
-        return hotels.createHotel(CreateHotelRequest.newBuilder().setName(body.name()).setAddress(body.address())
+        return catalog.createHotel(CreateHotelRequest.newBuilder().setName(body.name()).setAddress(body.address())
                         .setCity(body.city()).setCountry(body.country().toUpperCase()).setRating(body.rating()).build())
                 .map(result -> hotel(result.getHotel()));
     }
@@ -124,7 +119,7 @@ public class CatalogResource {
     @Path("/rooms")
     @RolesAllowed("ADMIN")
     public Uni<CatalogApiModels.Room> createRoom(@Valid CatalogApiModels.CreateRoom body) {
-        return hotels.createRoom(CreateRoomRequest.newBuilder().setHotelId(body.hotelId())
+        return catalog.createRoom(CreateRoomRequest.newBuilder().setHotelId(body.hotelId())
                         .setRoomNumber(body.roomNumber()).setRoomType(body.roomType())
                         .setNightlyPrice(money(body.nightlyPrice())).build())
                 .map(result -> room(result.getRoom()));
@@ -139,7 +134,7 @@ public class CatalogResource {
         if (type == null || type.isBlank() || startsAt == null || endsAt == null || !endsAt.isAfter(startsAt)) {
             throw new BadRequestException("type and a valid [startsAt, endsAt) interval are required");
         }
-        return transports.searchTransports(SearchTransportsRequest.newBuilder().setTransportType(type)
+        return catalog.searchTransports(SearchTransportsRequest.newBuilder().setTransportType(type)
                         .setStartsAt(timestamp(startsAt)).setEndsAt(timestamp(endsAt)).build())
                 .map(result -> new CatalogApiModels.Transports(
                         result.getTransportsList().stream().map(this::transport).toList()));
@@ -154,7 +149,7 @@ public class CatalogResource {
         } catch (Exception exception) {
             throw new BadRequestException("vehicleDetailsJson must contain valid JSON");
         }
-        return transports.createTransport(CreateTransportRequest.newBuilder()
+        return catalog.createTransport(CreateTransportRequest.newBuilder()
                         .setTransportType(body.transportType()).setProviderName(body.providerName())
                         .setVehicleDetailsJson(body.vehicleDetailsJson()).setPrice(money(body.price())).build())
                 .map(result -> transport(result.getTransport()));
