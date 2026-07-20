@@ -1,5 +1,6 @@
 package org.sebastiandev.trip.gateway.api;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -31,6 +32,7 @@ public final class BookingApiModels {
     public record Cancel(String reason) {
     }
 
+    @RegisterForReflection
     public record BookingCreated(String bookingId, String status, String location) {
     }
 
@@ -63,6 +65,7 @@ public final class BookingApiModels {
             int totalPages) {
     }
 
+    @RegisterForReflection
     public record BookingCancelled(String bookingId, String status) {
     }
 }

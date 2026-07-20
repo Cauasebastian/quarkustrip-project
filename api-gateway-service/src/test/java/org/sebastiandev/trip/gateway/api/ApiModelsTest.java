@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.grpc.Status;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.validation.Validation;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -45,5 +46,8 @@ class ApiModelsTest {
                 Status.NOT_FOUND.withDescription("booking not found").asRuntimeException());
         assertEquals(404, response.getStatus());
         assertEquals(ApiError.of("NOT_FOUND", "booking not found"), response.getEntity());
+        assertTrue(ApiError.class.isAnnotationPresent(RegisterForReflection.class));
+        assertTrue(BookingApiModels.BookingCreated.class.isAnnotationPresent(RegisterForReflection.class));
+        assertTrue(BookingApiModels.BookingCancelled.class.isAnnotationPresent(RegisterForReflection.class));
     }
 }

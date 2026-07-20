@@ -1,9 +1,21 @@
 package org.sebastiandev.trip.contracts.event;
 
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+@RegisterForReflection(targets = {
+        EventPayloads.ReservationRequested.class,
+        EventPayloads.ReservationOutcome.class,
+        EventPayloads.ReservationAction.class,
+        EventPayloads.PaymentRequested.class,
+        EventPayloads.PaymentOutcome.class,
+        EventPayloads.RefundRequested.class,
+        EventPayloads.BookingTerminal.class,
+        EventPayloads.UserProfileChanged.class,
+        EventPayloads.NotificationOutcome.class
+})
 public final class EventPayloads {
     private EventPayloads() {}
 

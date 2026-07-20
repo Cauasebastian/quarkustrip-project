@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.quarkus.runtime.annotations.RegisterForReflection;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.lang.reflect.Modifier;
 import org.junit.jupiter.api.Test;
@@ -57,5 +60,15 @@ class EventContractTest {
         assertNotNull(ListUserBookingsResponse.getDescriptor().findFieldByName("total_elements"));
         assertNotNull(ListUserBookingsResponse.getDescriptor().findFieldByName("page"));
         assertNotNull(ListUserBookingsResponse.getDescriptor().findFieldByName("size"));
+    }
+
+    @Test
+    void registersEveryEventPayloadForNativeReflection() {
+        RegisterForReflection registration = EventPayloads.class.getAnnotation(RegisterForReflection.class);
+        assertNotNull(registration);
+        assertEquals(Set.of(EventPayloads.class.getDeclaredClasses()), Set.copyOf(Arrays.asList(registration.targets())));
+        assertTrue(EventEnvelope.class.isAnnotationPresent(RegisterForReflection.class));
+        assertNotNull(getClass().getResource(
+                "/META-INF/native-image/org.sebastiandev.trip/contracts/resource-config.json"));
     }
 }
