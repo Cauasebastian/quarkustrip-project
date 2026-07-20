@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 public final class TraceContextSupport {
     public static final String TRACE_PARENT = "traceparent";
     public static final String TRACE_STATE = "tracestate";
+    public static final String OUTBOX_ATTEMPT = "trip-outbox-attempt";
     private static final TextMapSetter<Map<String, String>> SETTER = Map::put;
     private static final TextMapGetter<Map<String, String>> GETTER = new TextMapGetter<>() {
         @Override
@@ -98,6 +99,7 @@ public final class TraceContextSupport {
     public static Span startInboxSpan(UUID eventId, UUID bookingId, String destination) {
         Span span = startSpan("inbox.process", SpanKind.INTERNAL, Context.current());
         setMessageAttributes(span, eventId, bookingId, destination);
+        span.setAttribute("inbox.duplicate", false);
         return span;
     }
 

@@ -38,7 +38,10 @@ public class NotificationApplicationService {
 
     public Uni<Void> updateContact(EventEnvelope event, EventPayloads.UserProfileChanged payload) {
         return process(event, null, () -> processed.findById(event.eventId()).chain(existing -> {
-            if (existing != null) return Uni.createFrom().voidItem();
+            if (existing != null) {
+                Span.current().setAttribute("inbox.duplicate", true);
+                return Uni.createFrom().voidItem();
+            }
             return contacts.findById(payload.userId()).chain(contact -> {
                 UserContact value = contact == null ? new UserContact() : contact;
                 value.userId = payload.userId();
@@ -51,7 +54,10 @@ public class NotificationApplicationService {
 
     public Uni<Void> notifyTerminal(EventEnvelope event, EventPayloads.BookingTerminal payload) {
         return process(event, payload.bookingId(), () -> processed.findById(event.eventId()).chain(existing -> {
-            if (existing != null) return Uni.createFrom().voidItem();
+            if (existing != null) {
+                Span.current().setAttribute("inbox.duplicate", true);
+                return Uni.createFrom().voidItem();
+            }
             return contacts.findById(payload.userId()).chain(contact -> {
                 String recipient = contact == null ? payload.userId() + "@local.test" : contact.email;
                 OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);

@@ -102,4 +102,16 @@ class TraceContextSupportTest {
         assertEquals(2L, publishSpan.getAttributes().get(AttributeKey.longKey("outbox.attempt")));
         assertNotNull(waitSpan.getAttributes().get(AttributeKey.longKey("outbox.wait_ms")));
     }
+
+    @Test
+    void recordsNonDuplicateInboxProcessingByDefault() {
+        Span span = TraceContextSupport.startInboxSpan(UUID.randomUUID(), UUID.randomUUID(),
+                "trip.flight.held.v1");
+        span.end();
+
+        var processed = EXPORTER.getFinishedSpanItems().stream()
+                .filter(item -> item.getName().equals("inbox.process"))
+                .findFirst().orElseThrow();
+        assertEquals(false, processed.getAttributes().get(AttributeKey.booleanKey("inbox.duplicate")));
+    }
 }

@@ -40,6 +40,7 @@ public class OutboxPublisher {
                 event.topic, event.attempts + 1, event.createdAt.toInstant(),
                 new TraceContextSnapshot(event.traceParent, event.traceState));
         Message<String> message = KafkaRecord.of(event.topic, event.aggregateId.toString(), event.payload)
+                .withHeader(TraceContextSupport.OUTBOX_ATTEMPT, Integer.toString(event.attempts + 1))
                 .addMetadata(TracingMetadata.withCurrent(trace.context()));
         return emitter.sendMessage(message).onItemOrFailure().invoke((ignored, failure) -> trace.finish(failure))
                 .chain(() -> markPublished(event)).onFailure().call(() -> incrementAttempts(event));
