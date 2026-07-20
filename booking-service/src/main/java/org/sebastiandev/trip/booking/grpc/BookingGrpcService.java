@@ -5,6 +5,7 @@ import io.quarkus.grpc.GrpcService;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import java.util.UUID;
+import org.jboss.logging.Logger;
 import org.sebastiandev.trip.booking.service.BookingApplicationService;
 import org.sebastiandev.trip.booking.service.BookingMapper;
 import org.sebastiandev.trip.booking.service.BookingValidator;
@@ -20,6 +21,8 @@ import org.sebastiandev.trip.contracts.grpc.ListUserBookingsResponse;
 
 @GrpcService
 public class BookingGrpcService implements BookingCommandService {
+    private static final Logger LOG = Logger.getLogger(BookingGrpcService.class);
+
     @Inject BookingApplicationService service;
     @Inject BookingMapper mapper;
     @Inject BookingValidator validator;
@@ -30,6 +33,8 @@ public class BookingGrpcService implements BookingCommandService {
                         .setBookingId(booking.id.toString())
                         .setStatus(org.sebastiandev.trip.contracts.grpc.BookingStatus.valueOf(booking.status.name()))
                         .setCreatedAt(mapper.timestamp(booking.createdAt)).build())
+                .onFailure(failure -> !(failure instanceof IllegalArgumentException))
+                        .invoke(failure -> LOG.error("Create booking RPC failed", failure))
                 .onFailure(IllegalArgumentException.class).transform(this::invalidArgument);
     }
 
