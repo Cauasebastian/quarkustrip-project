@@ -3,6 +3,10 @@
     <modelVersion>4.0.0</modelVersion>
     <parent><groupId>org.sebastiandev.trip</groupId><artifactId>trip-platform</artifactId><version>1.0.0-SNAPSHOT</version><relativePath>../pom.xml</relativePath></parent>
     <artifactId>contracts</artifactId>
+    <properties>
+        <!-- The parent native profile selects this module as a JVM dependency only. -->
+        <quarkus.native.enabled>false</quarkus.native.enabled>
+    </properties>
     <dependencies>
         <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-grpc</artifactId></dependency>
         <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-jackson</artifactId></dependency>
