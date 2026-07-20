@@ -68,7 +68,7 @@ Um `docker compose up` sem profile não seleciona serviços. Para parar contêin
 
 ### Runtime nativo
 
-O profile Maven `native` compila somente `contracts`, Gateway, Booking, Flight, Payment e Notification. Hotel, Transport e User permanecem JVM por enquanto. O build é sequencial, executado pelo Mandrel em contêiner e limitado a 5 GiB de heap.
+O profile Maven `native` inclui `contracts` como dependência JVM e gera executáveis nativos para Gateway, Booking, Flight, Payment e Notification. Hotel, Transport e User permanecem JVM por enquanto. O build é sequencial, executado pelo Mandrel em contêiner e limitado a 5 GiB de heap.
 
 Antes de compilar, pare a stack e execute o preflight:
 
@@ -79,6 +79,20 @@ mvn verify -Pnative
 ```
 
 O build nativo pode demorar e precisa de aproximadamente 8 GB disponíveis no Docker e 8 GiB livres em disco. O preflight apenas verifica recursos: ele nunca remove volumes, imagens ou caches.
+
+Essa demora acontece durante a compilação: o Mandrel analisa antecipadamente toda a aplicação para produzir um executável que inicia mais rápido e usa menos RAM. Para o ciclo diário de desenvolvimento, prefira a execução JVM com `docker compose --profile core up -d --build`. Depois que os binários nativos estiverem prontos, iniciar os contêineres nativos também é rápido.
+
+Ao iterar em código já validado, é possível pular os testes e recompilar somente um serviço:
+
+```powershell
+# Todos os serviços nativos, sem repetir os testes
+mvn package -Pnative -DskipTests
+
+# Apenas o Payment e as dependências necessárias
+mvn package -Pnative -DskipTests -pl payment-service -am
+```
+
+Não execute builds `native-image` em paralelo quando o Docker estiver limitado a 8 GiB. A pequena redução de tempo costuma ser anulada pela pressão de memória, paginação em disco ou encerramento por OOM.
 
 Para iniciar o `core` usando os binários gerados:
 
