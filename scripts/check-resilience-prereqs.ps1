@@ -20,7 +20,7 @@ if ($mainContainers.Count -gt 0 -and $mainContainers[0]) {
     throw "A stack normal esta em execucao. Para liberar memoria, rode 'docker compose --profile core --profile full --profile observability --profile metrics down' e tente novamente. O runner nao encerra seus conteineres automaticamente."
 }
 
-$freeSpace = (Get-PSDrive -Name ([System.IO.Path]::GetPathRoot($PSScriptRoot).TrimEnd(':'))).Free
+$freeSpace = (Get-Item -LiteralPath $PSScriptRoot).PSDrive.Free
 if ($freeSpace -lt 4GB) {
     throw "Ha menos de 4 GiB livres no disco. Libere espaco antes de iniciar a infraestrutura isolada."
 }
