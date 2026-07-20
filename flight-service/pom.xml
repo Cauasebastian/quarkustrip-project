@@ -22,4 +22,18 @@
         <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-junit</artifactId><scope>test</scope></dependency>
     </dependencies>
     <build><plugins><plugin><groupId>${quarkus.platform.group-id}</groupId><artifactId>quarkus-maven-plugin</artifactId></plugin></plugins></build>
+    <profiles>
+        <profile>
+            <id>native</id>
+            <properties>
+                <skipITs>false</skipITs>
+                <quarkus.native.enabled>true</quarkus.native.enabled>
+                <quarkus.native.container-build>true</quarkus.native.container-build>
+                <quarkus.native.builder-image>mandrel</quarkus.native.builder-image>
+                <quarkus.native.builder-image.pull>missing</quarkus.native.builder-image.pull>
+                <quarkus.native.native-image-xmx>5g</quarkus.native.native-image-xmx>
+                <quarkus.native.march>compatibility</quarkus.native.march>
+            </properties>
+        </profile>
+    </profiles>
 </project>

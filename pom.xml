@@ -127,16 +127,6 @@
                 <module>payment-service</module>
                 <module>notification-service</module>
             </modules>
-            <properties>
-                <skipITs>false</skipITs>
-                <skip.frontend>true</skip.frontend>
-                <quarkus.native.enabled>true</quarkus.native.enabled>
-                <quarkus.native.container-build>true</quarkus.native.container-build>
-                <quarkus.native.builder-image>mandrel</quarkus.native.builder-image>
-                <quarkus.native.builder-image.pull>missing</quarkus.native.builder-image.pull>
-                <quarkus.native.native-image-xmx>5g</quarkus.native.native-image-xmx>
-                <quarkus.native.march>compatibility</quarkus.native.march>
-            </properties>
         </profile>
     </profiles>
 </project>
