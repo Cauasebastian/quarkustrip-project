@@ -1,6 +1,6 @@
 x-otel-environment: &otel-environment
   OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
-  QUARKUS_OTEL_EXPORTER_OTLP_ENABLED: "true"
+  QUARKUS_OTEL_SDK_DISABLED: "false"
 
 x-jaeger-dependency: &jaeger-dependency
   jaeger:

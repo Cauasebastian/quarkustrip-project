@@ -106,7 +106,7 @@ Endereços locais:
 
 ## Observabilidade distribuída
 
-Os serviços preservam e propagam o contexto distribuído mesmo no profile enxuto, mas o exporter OTLP fica desligado enquanto Jaeger não estiver selecionado. Para iniciar `core` com traces:
+Os serviços mantêm a instrumentação distribuída compilada, mas usam `quarkus.otel.sdk.disabled=true` no profile enxuto e não geram lotes OTLP enquanto Jaeger não estiver selecionado. O override de observabilidade reativa o SDK; inicie-o antes de gerar o fluxo que deseja inspecionar. Para iniciar `core` com traces:
 
 ```powershell
 docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile core --profile observability up -d --build

@@ -11,8 +11,7 @@ x-app-common: &app-common
   environment: &app-environment
     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
-    QUARKUS_OTEL_EXPORTER_OTLP_ENABLED: "false"
-    QUARKUS_OTEL_TRACES_SAMPLER: parentbased_always_on
+    QUARKUS_OTEL_SDK_DISABLED: "true"
     QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
     QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"
     QUARKUS_OTEL_INSTRUMENT_REST: "true"
@@ -310,8 +309,7 @@ services:
       TRANSPORT_GRPC_HOST: transport-service
       USER_GRPC_HOST: user-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
-      QUARKUS_OTEL_EXPORTER_OTLP_ENABLED: "false"
-      QUARKUS_OTEL_TRACES_SAMPLER: parentbased_always_on
+      QUARKUS_OTEL_SDK_DISABLED: "true"
       QUARKUS_OTEL_INSTRUMENT_GRPC: "true"
       QUARKUS_OTEL_INSTRUMENT_MESSAGING: "true"
       QUARKUS_OTEL_INSTRUMENT_REST: "true"
