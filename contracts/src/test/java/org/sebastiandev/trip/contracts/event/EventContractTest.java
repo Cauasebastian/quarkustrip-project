@@ -49,7 +49,7 @@ class EventContractTest {
 
     @Test
     void rejectsEnvelopeMissingRequiredMetadata() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(NonRetryableMessageException.class,
                 () -> EventSchemaValidator.decodeValidated(mapper, "{\"schemaVersion\":1,\"payload\":{}}"));
     }
 

@@ -14,6 +14,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,11 +25,15 @@ import org.sebastiandev.trip.booking.domain.BookingItem;
 import org.sebastiandev.trip.booking.domain.BookingItemStatus;
 import org.sebastiandev.trip.booking.domain.BookingItemType;
 import org.sebastiandev.trip.booking.domain.BookingStatus;
+import org.sebastiandev.trip.booking.domain.PaymentState;
 import org.sebastiandev.trip.booking.messaging.OutboxService;
 import org.sebastiandev.trip.booking.messaging.InboxEvent;
 import org.sebastiandev.trip.booking.observability.SagaMetrics;
 import org.sebastiandev.trip.booking.repository.BookingRepository;
 import org.sebastiandev.trip.booking.repository.InboxRepository;
+import org.sebastiandev.trip.booking.repository.DlqEventRepository;
+import org.sebastiandev.trip.booking.messaging.DlqEvent;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.TopicNames;
@@ -45,6 +50,10 @@ public class BookingApplicationService {
     @Inject OutboxService outbox;
     @Inject SagaMetrics metrics;
     @Inject InboxRepository inbox;
+    @Inject DlqEventRepository dlqEvents;
+    @Inject @ConfigProperty(name = "trip.saga.step-timeout", defaultValue = "60s") Duration stepTimeout;
+    @Inject @ConfigProperty(name = "trip.saga.total-timeout", defaultValue = "5m") Duration sagaTimeout;
+    @Inject @ConfigProperty(name = "trip.saga.hold-retention", defaultValue = "15m") Duration holdRetention;
 
     public Uni<Booking> create(CreateBookingRequest request) {
         UUID userId = validator.validate(request);
@@ -61,9 +70,10 @@ public class BookingApplicationService {
         booking.status = BookingStatus.RESERVING;
         booking.currency = request.getCurrency().toUpperCase();
         booking.paymentMethodRef = request.getPaymentMethodRef();
+        booking.paymentState = PaymentState.NOT_REQUESTED;
         booking.idempotencyKey = request.getIdempotencyKey();
-        booking.stepDeadline = now.plusSeconds(60);
-        booking.sagaDeadline = now.plusMinutes(5);
+        booking.stepDeadline = now.plus(stepTimeout);
+        booking.sagaDeadline = now.plus(sagaTimeout);
         booking.createdAt = now;
         booking.updatedAt = now;
         TraceContextSnapshot sagaTrace = TraceContextSupport.captureCurrent();
@@ -140,6 +150,7 @@ public class BookingApplicationService {
     public Uni<Booking> cancel(UUID id, UUID requesterId, boolean admin, String reason) {
         return Panache.withTransaction(() -> get(id, requesterId, admin).chain(booking -> {
             if (booking.status == BookingStatus.CANCELLED) return Uni.createFrom().item(booking);
+            if (booking.status == BookingStatus.COMPENSATING) return Uni.createFrom().item(booking);
             if (booking.status == BookingStatus.FAILED || booking.status == BookingStatus.MANUAL_REVIEW) {
                 throw new IllegalStateException("booking cannot be cancelled in state " + booking.status);
             }
@@ -179,14 +190,15 @@ public class BookingApplicationService {
         }
         return outbox.enqueue(topic(item.type, "reserve"), booking.id, causationId,
                 new EventPayloads.ReservationRequested(booking.id, item.id, booking.userId, item.resourceId,
-                        attributes, booking.currency, OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15)))
+                        attributes, booking.currency, OffsetDateTime.now(ZoneOffset.UTC).plus(holdRetention)))
                 .replaceWithVoid();
     }
 
     public Uni<Void> startPayment(Booking booking, UUID causationId) {
         return transition(booking, BookingStatus.PAYMENT_PENDING, ignored -> {
             booking.totalAmountMinor = booking.items.stream().mapToLong(item -> item.amountMinor).sum();
-            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
+            booking.paymentState = PaymentState.PENDING;
+            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plus(stepTimeout);
             booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
             metrics.transition(BookingStatus.PAYMENT_PENDING.name());
             return outbox.enqueue(TopicNames.PAYMENT_PROCESS_REQUESTED, booking.id, causationId,
@@ -197,7 +209,7 @@ public class BookingApplicationService {
 
     public Uni<Void> startConfirmation(Booking booking, UUID causationId) {
         return transition(booking, BookingStatus.CONFIRMING, ignored -> {
-            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(60);
+            booking.stepDeadline = OffsetDateTime.now(ZoneOffset.UTC).plus(stepTimeout);
             booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
             metrics.transition(BookingStatus.CONFIRMING.name());
             Uni<Void> chain = Uni.createFrom().voidItem();
@@ -221,9 +233,9 @@ public class BookingApplicationService {
             OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
             booking.status = BookingStatus.COMPENSATING;
             booking.failureCode = reason;
-            booking.stepDeadline = now.plusSeconds(60);
+            booking.stepDeadline = now.plus(stepTimeout);
             if (booking.cancellationRequested) {
-                booking.sagaDeadline = now.plusMinutes(5);
+                booking.sagaDeadline = now.plus(sagaTimeout);
             }
             booking.updatedAt = now;
             metrics.compensation();
@@ -235,10 +247,8 @@ public class BookingApplicationService {
                             .replaceWithVoid());
                 }
             }
-            if (booking.paymentId != null) {
-                chain = chain.chain(() -> outbox.enqueue(TopicNames.PAYMENT_REFUND_REQUESTED, booking.id,
-                        causationId, new EventPayloads.RefundRequested(booking.id, booking.paymentId, reason))
-                        .replaceWithVoid());
+            if (booking.paymentState == PaymentState.SUCCEEDED && booking.paymentId != null) {
+                chain = chain.chain(() -> requestRefund(booking, reason, causationId));
             }
             return chain.chain(() -> finishCompensationIfPossible(booking, causationId));
         });
@@ -247,7 +257,8 @@ public class BookingApplicationService {
     public Uni<Void> finishCompensationIfPossible(Booking booking, UUID causationId) {
         boolean resourcesReleased = booking.items.stream().allMatch(item ->
                 item.status == BookingItemStatus.CANCELLED || item.status == BookingItemStatus.FAILED);
-        if (resourcesReleased && booking.paymentId == null) {
+        boolean paymentSettled = booking.paymentState != null && booking.paymentState.settledForCompensation();
+        if (resourcesReleased && paymentSettled) {
             BookingStatus terminalStatus = booking.cancellationRequested ? BookingStatus.CANCELLED
                     : BookingStatus.FAILED;
             return transition(booking, terminalStatus, ignored -> {
@@ -329,23 +340,92 @@ public class BookingApplicationService {
     public Uni<Void> processPaymentOutcome(EventEnvelope event, EventPayloads.PaymentOutcome payload) {
         return process(event, payload.bookingId(), (booking, envelope) -> switch (payload.status()) {
             case "SUCCEEDED" -> {
-                if (booking.status != BookingStatus.PAYMENT_PENDING) yield Uni.createFrom().voidItem();
+                if (booking.status == BookingStatus.RESERVING) yield Uni.createFrom().voidItem();
                 booking.paymentId = payload.paymentId();
-                yield startConfirmation(booking, envelope.eventId());
+                booking.paymentState = PaymentState.SUCCEEDED;
+                if (booking.status == BookingStatus.PAYMENT_PENDING) {
+                    yield startConfirmation(booking, envelope.eventId());
+                }
+                if (booking.status == BookingStatus.COMPENSATING) {
+                    yield requestRefund(booking, "LATE_PAYMENT_SUCCESS", envelope.eventId());
+                }
+                if (booking.status == BookingStatus.CANCELLED || booking.status == BookingStatus.FAILED
+                        || booking.status == BookingStatus.MANUAL_REVIEW) {
+                    yield requestRefund(booking, "LATE_PAYMENT_SUCCESS", envelope.eventId());
+                }
+                yield Uni.createFrom().voidItem();
             }
             case "FAILED" -> {
-                if (booking.status != BookingStatus.PAYMENT_PENDING) yield Uni.createFrom().voidItem();
-                yield startCompensation(booking,
-                        payload.reason() == null ? "PAYMENT_FAILED" : payload.reason(), envelope.eventId());
+                if (booking.status == BookingStatus.PAYMENT_PENDING) {
+                    booking.paymentState = PaymentState.FAILED;
+                    yield startCompensation(booking,
+                            payload.reason() == null ? "PAYMENT_FAILED" : payload.reason(), envelope.eventId());
+                }
+                if (booking.status == BookingStatus.COMPENSATING) {
+                    booking.paymentState = PaymentState.FAILED;
+                    yield finishCompensationIfPossible(booking, envelope.eventId());
+                }
+                yield Uni.createFrom().voidItem();
             }
             case "REFUNDED" -> {
+                booking.paymentState = PaymentState.REFUNDED;
                 if (booking.status != BookingStatus.COMPENSATING) yield Uni.createFrom().voidItem();
-                booking.paymentId = null;
                 yield finishCompensationIfPossible(booking, envelope.eventId());
             }
-            case "REFUND_FAILED" -> manualReview(booking, "REFUND_FAILED", envelope.eventId());
+            case "REFUND_FAILED" -> {
+                booking.paymentState = PaymentState.REFUND_FAILED;
+                yield manualReview(booking, "REFUND_FAILED", envelope.eventId());
+            }
             default -> Uni.createFrom().voidItem();
         });
+    }
+
+    private Uni<Void> requestRefund(Booking booking, String reason, UUID causationId) {
+        if (booking.paymentId == null || booking.paymentState == PaymentState.REFUND_PENDING
+                || booking.paymentState == PaymentState.REFUNDED) {
+            return Uni.createFrom().voidItem();
+        }
+        booking.paymentState = PaymentState.REFUND_PENDING;
+        return outbox.enqueue(TopicNames.PAYMENT_REFUND_REQUESTED, booking.id, causationId,
+                new EventPayloads.RefundRequested(booking.id, booking.paymentId, reason)).replaceWithVoid();
+    }
+
+    public Uni<Void> processDlq(EventEnvelope event, String originalTopic, String reason) {
+        String id = event.eventId() + ":" + originalTopic;
+        String failure = dlqFailure(originalTopic, reason);
+        return Panache.withTransaction(() -> dlqEvents.findById(id).chain(existing -> {
+            if (existing != null) return Uni.createFrom().voidItem();
+            return repository.findById(event.correlationId()).chain(booking -> {
+                if (booking == null) return markDlq(id, event, originalTopic);
+                Uni<Void> action;
+                if (originalTopic.startsWith("trip.notification.")) {
+                    action = Uni.createFrom().voidItem();
+                } else if (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.CANCELLED
+                        || booking.status == BookingStatus.FAILED || booking.status == BookingStatus.MANUAL_REVIEW) {
+                    action = Uni.createFrom().voidItem();
+                } else if (booking.status == BookingStatus.COMPENSATING || originalTopic.contains("cancel")
+                        || originalTopic.contains("refund")) {
+                    action = manualReview(booking, failure, event.eventId());
+                } else {
+                    action = startCompensation(booking, failure, event.eventId());
+                }
+                return action.chain(() -> markDlq(id, event, originalTopic));
+            });
+        }));
+    }
+
+    private String dlqFailure(String originalTopic, String reason) {
+        String value = "DLQ:" + originalTopic + ':' + reason;
+        return value.length() <= 255 ? value : value.substring(0, 255);
+    }
+
+    private Uni<Void> markDlq(String id, EventEnvelope event, String originalTopic) {
+        DlqEvent processed = new DlqEvent();
+        processed.id = id;
+        processed.eventId = event.eventId();
+        processed.originalTopic = originalTopic;
+        processed.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        return dlqEvents.persist(processed).replaceWithVoid();
     }
 
     private Uni<Void> process(EventEnvelope event, UUID bookingId,

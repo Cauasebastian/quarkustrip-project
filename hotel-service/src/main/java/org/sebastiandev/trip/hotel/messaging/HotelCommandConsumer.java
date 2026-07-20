@@ -12,10 +12,11 @@ import org.sebastiandev.trip.contracts.event.EventCodec;
 import org.sebastiandev.trip.contracts.event.EventEnvelope;
 import org.sebastiandev.trip.contracts.event.EventPayloads;
 import org.sebastiandev.trip.contracts.event.EventSchemaValidator;
+import org.sebastiandev.trip.contracts.event.NonRetryableMessageException;
 import org.sebastiandev.trip.hotel.service.HotelApplicationService;
 
 @ApplicationScoped
-@Retry(maxRetries = 3, delay = 200)
+@Retry(maxRetries = 2, delay = 200, abortOn = NonRetryableMessageException.class)
 public class HotelCommandConsumer {
     @Inject ObjectMapper mapper;
     @Inject HotelApplicationService service;

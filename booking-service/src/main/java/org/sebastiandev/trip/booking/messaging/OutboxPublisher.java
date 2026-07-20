@@ -23,7 +23,9 @@ public class OutboxPublisher {
     @Inject OutboxRepository repository;
     @Inject @Channel("outbox") MutinyEmitter<String> emitter;
 
-    @Scheduled(every = "1s", delayed = "30s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "${trip.outbox.publish-interval:1s}",
+            delayed = "${trip.outbox.initial-delay:30s}",
+            concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithSession
     Uni<Void> publish() {
         return repository.find("publishedAt is null order by createdAt").page(0, 50).list().chain(this::publishBatch);

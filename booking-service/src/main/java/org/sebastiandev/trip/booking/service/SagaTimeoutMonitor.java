@@ -18,7 +18,8 @@ public class SagaTimeoutMonitor {
     @Inject BookingRepository bookings;
     @Inject BookingApplicationService service;
 
-    @Scheduled(every = "5s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(every = "${trip.saga.timeout-check-interval:5s}",
+            concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithSession
     Uni<Void> expire() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);

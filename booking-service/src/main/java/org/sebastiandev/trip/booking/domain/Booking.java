@@ -40,6 +40,10 @@ public class Booking {
     @Column(name = "payment_id")
     public UUID paymentId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_state", nullable = false)
+    public PaymentState paymentState;
+
     @Column(name = "idempotency_key", nullable = false, unique = true)
     public String idempotencyKey;
 

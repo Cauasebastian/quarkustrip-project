@@ -22,7 +22,7 @@ public final class EventSchemaValidator {
             if (payloadSchema != null) validate(mapper, envelope.payload(), payloadSchema);
             return envelope;
         } catch (IOException exception) {
-            throw new IllegalArgumentException("Invalid event JSON", exception);
+            throw new NonRetryableMessageException("Invalid event JSON", exception);
         }
     }
 
@@ -108,5 +108,7 @@ public final class EventSchemaValidator {
         return null;
     }
 
-    private static IllegalArgumentException invalid(String message) { return new IllegalArgumentException(message); }
+    private static NonRetryableMessageException invalid(String message) {
+        return new NonRetryableMessageException(message);
+    }
 }
