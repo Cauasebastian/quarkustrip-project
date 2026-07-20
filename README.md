@@ -242,3 +242,66 @@ Os testes Playwright exigem a stack completa em execução.
 - Redis nunca é fonte de verdade para inventário.
 
 Os volumes são descartáveis nesta versão. Use `docker compose down -v` somente quando quiser apagar deliberadamente bancos, tópicos e usuários locais.
+
+## Observabilidade por reserva
+
+Com o profile `observability` ativo, a página `/bookings/{id}` consulta o Jaeger pelo Gateway e mostra:
+
+- tempo total observado e duração das etapas da Saga;
+- conexões entre os serviços com badges `REST`, `gRPC` e `Kafka`;
+- retries, duplicações, DLQ, spans com falha, compensação e reembolso;
+- atalhos para o trace principal, traces relacionados e o grafo global de dependências.
+
+O navegador nunca acessa a API interna do Jaeger para obter dados. O Gateway primeiro confirma pelo Booking gRPC que a reserva pertence ao usuário autenticado e então consulta o Jaeger. A API protegida usada pela tela é:
+
+```http
+GET /api/v1/bookings/{bookingId}/observability
+```
+
+O `BookingView` expõe somente o `traceId` de 32 caracteres hexadecimais. `traceparent` e `tracestate` permanecem internos. Quando o Jaeger estiver desligado, o circuito estiver aberto ou o trace tiver expirado, o endpoint responde `200` com `available=false`; a consulta e o cancelamento da reserva continuam funcionando normalmente.
+
+Durante uma Saga ativa, a UI atualiza a reserva a cada dois segundos e o resumo do Jaeger a cada cinco segundos. Os traces ficam apenas na memória do Jaeger local e desaparecem quando o contêiner reinicia. Para abrir as ferramentas diretamente:
+
+- trace: `http://localhost:16686/trace/{traceId}`;
+- busca: `http://localhost:16686/search`;
+- comunicação global: `http://localhost:16686/dependencies`.
+
+As consultas gRPC idempotentes do Gateway têm timeout de dois segundos, até duas novas tentativas com jitter e circuit breaker. Comandos têm timeout de três segundos e circuit breaker, sem retry. Apenas `UNAVAILABLE` e `DEADLINE_EXCEEDED` são retentados; dependência indisponível é traduzida para `503 DEPENDENCY_UNAVAILABLE`.
+
+Os valores padrão da Saga podem ser ajustados sem recompilar:
+
+| Propriedade | Padrão | Finalidade |
+|---|---:|---|
+| `trip.saga.step-timeout` | `60s` | prazo de cada etapa |
+| `trip.saga.total-timeout` | `5m` | prazo total da Saga |
+| `trip.saga.hold-retention` | `15m` | retenção dos recursos |
+| `trip.saga.timeout-check-interval` | `5s` | frequência do monitor de timeout |
+| `trip.outbox.publish-interval` | `1s` | frequência de publicação da outbox |
+
+## Testes de resiliência
+
+A suíte pesada não participa do `mvn verify` normal. Ela sobe um projeto Compose chamado `trip-resilience`, com portas e volumes isolados, e usa PostgreSQL, Kafka, MongoDB, WireMock e Toxiproxy reais:
+
+```powershell
+mvn verify -Presilience
+```
+
+O runner verifica Docker, memória e disco antes de iniciar. Ele nunca encerra a stack principal. Para evitar paginação excessiva com os 8 GiB disponíveis no Docker Desktop, se a plataforma estiver rodando o preflight encerra com uma instrução explícita; nesse caso:
+
+```powershell
+docker compose --profile core --profile full --profile observability --profile metrics down
+mvn verify -Presilience
+```
+
+O teardown da infraestrutura isolada ocorre na fase `post-integration-test`, inclusive quando o Failsafe detecta falhas. A suíte cobre:
+
+- Payment lento e offline;
+- falha transacional depois de criar o hold do voo;
+- Kafka indisponível após o commit da outbox;
+- eventos duplicados e fora de ordem;
+- Notification/MongoDB indisponível e recuperação posterior;
+- reembolso recusado e escalonamento para `MANUAL_REVIEW`;
+- timeout durante compensação;
+- retry seletivo de consultas e ausência de retry em comandos.
+
+As portas exclusivas da suíte são PostgreSQL `35432`, MongoDB `37017`, API do Toxiproxy `38474`, Kafka pelo proxy `38663`, dependências HTTP pelo proxy `38666` e WireMock `38089`.
