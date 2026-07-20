@@ -1,0 +1,4 @@
+{
+  "request": { "method": "POST", "urlPath": "/refund" },
+  "response": { "status": 409, "jsonBody": { "status": "REFUND_FAILED" }, "headers": { "Content-Type": "application/json" } }
+}

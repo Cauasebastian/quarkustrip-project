@@ -1,0 +1,4 @@
+{
+  "request": { "method": "POST", "urlPath": "/compensation" },
+  "response": { "status": 200, "jsonBody": { "status": "CANCELLED" }, "headers": { "Content-Type": "application/json" } }
+}

@@ -1,0 +1,4 @@
+{
+  "request": { "method": "POST", "urlPath": "/notification" },
+  "response": { "status": 202, "jsonBody": { "status": "ACCEPTED" }, "headers": { "Content-Type": "application/json" } }
+}

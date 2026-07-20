@@ -128,5 +128,11 @@
                 <module>notification-service</module>
             </modules>
         </profile>
+        <profile>
+            <id>resilience</id>
+            <modules>
+                <module>resilience-tests</module>
+            </modules>
+        </profile>
     </profiles>
 </project>
