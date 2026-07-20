@@ -33,4 +33,24 @@ describe("Trip API client", () => {
       items: [{ type: "FLIGHT", resourceId: "flight-1", seatNumber: "1A" }]
     }, "attempt-123")).resolves.toMatchObject({ bookingId: "booking-1" });
   });
+
+  it("loads the Jaeger summary through the protected booking endpoint", async () => {
+    server.use(http.get("http://localhost:8080/api/v1/bookings/booking-1/observability", () =>
+      HttpResponse.json({
+        available: true,
+        bookingId: "booking-1",
+        primaryTraceId: "0123456789abcdef0123456789abcdef",
+        traceIds: ["0123456789abcdef0123456789abcdef"],
+        totalDurationMs: 1200,
+        stages: [],
+        communications: [],
+        signals: { retryCount: 0, duplicateCount: 0, dlqCount: 0, failedSpanCount: 0,
+          compensationStarted: false, refundRequested: false, notificationStatus: null }
+      })));
+
+    await expect(tripApi.getBookingObservability("booking-1")).resolves.toMatchObject({
+      available: true,
+      totalDurationMs: 1200
+    });
+  });
 });

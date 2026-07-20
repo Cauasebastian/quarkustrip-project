@@ -10,6 +10,14 @@ export function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+export function formatDuration(milliseconds: number): string {
+  if (milliseconds < 1_000) return `${Math.max(0, Math.round(milliseconds))} ms`;
+  if (milliseconds < 60_000) return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
+  const minutes = Math.floor(milliseconds / 60_000);
+  const seconds = Math.round((milliseconds % 60_000) / 1_000);
+  return `${minutes} min ${seconds} s`;
+}
+
 export function localDateTimeToIso(value: string): string {
   return new Date(value).toISOString();
 }

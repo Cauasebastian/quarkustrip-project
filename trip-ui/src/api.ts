@@ -3,6 +3,7 @@ import type {
   ApiErrorBody,
   Booking,
   BookingCreated,
+  BookingObservability,
   BookingPage,
   BookingRequestItem,
   Flight,
@@ -72,6 +73,9 @@ export const tripApi = {
     request<BookingPage>(`/api/v1/bookings?${query({ page, size })}`),
 
   getBooking: (id: string) => request<Booking>(`/api/v1/bookings/${id}`),
+
+  getBookingObservability: (id: string) =>
+    request<BookingObservability>(`/api/v1/bookings/${id}/observability`),
 
   createBooking: (body: { currency: string; paymentMethodRef: string; items: BookingRequestItem[] }, key: string) =>
     request<BookingCreated>("/api/v1/bookings", {

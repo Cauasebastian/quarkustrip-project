@@ -338,6 +338,7 @@ services:
         VITE_KEYCLOAK_REALM: trip
         VITE_KEYCLOAK_CLIENT_ID: trip-gateway
         VITE_SHOW_DEV_CREDENTIALS: "true"
+        VITE_JAEGER_BASE_URL: ${JAEGER_PUBLIC_URL:-http://localhost:16686}
     restart: unless-stopped
     mem_limit: 64m
     ports: ["${TRIP_UI_HOST_PORT:-3000}:3000"]

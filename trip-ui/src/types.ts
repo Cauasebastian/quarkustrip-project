@@ -86,6 +86,46 @@ export interface BookingCreated {
   location: string;
 }
 
+export interface ObservabilityStage {
+  status: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  active: boolean;
+}
+
+export interface ServiceCommunication {
+  source: string;
+  target: string;
+  protocol: "REST" | "GRPC" | "KAFKA" | string;
+  destination: string;
+  count: number;
+  totalDurationMs: number;
+  errorCount: number;
+}
+
+export interface ObservabilitySignals {
+  retryCount: number;
+  duplicateCount: number;
+  dlqCount: number;
+  failedSpanCount: number;
+  compensationStarted: boolean;
+  refundRequested: boolean;
+  notificationStatus: string | null;
+}
+
+export interface BookingObservability {
+  available: boolean;
+  unavailableReason: string | null;
+  bookingId: string;
+  primaryTraceId: string | null;
+  traceIds: string[];
+  totalDurationMs: number;
+  stages: ObservabilityStage[];
+  communications: ServiceCommunication[];
+  signals: ObservabilitySignals;
+}
+
 export interface Profile {
   id: string;
   subject: string;

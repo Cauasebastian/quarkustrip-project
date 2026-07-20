@@ -155,6 +155,43 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
 .danger { margin: 0; color: var(--danger); font-size: .82rem; }
 .detail-actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
 
+.observability-card { margin: 1.5rem 0 2rem; padding: 1.35rem; border: 1px solid #c8dcff; border-radius: 16px; background: linear-gradient(145deg, #fff, #f4f8ff); box-shadow: 0 10px 32px rgba(36,107,253,.07); }
+.observability-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.observability-heading h2 { margin: 0; }
+.observability-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .55rem; }
+.observability-message { display: flex; align-items: center; gap: .7rem; margin: 1rem 0 0; }
+.observability-message .spinner { width: 19px; height: 19px; flex: 0 0 19px; }
+.observability-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin-top: 1.15rem; }
+.observability-summary > div { display: grid; gap: .25rem; padding: .85rem; border: 1px solid #dae7fa; border-radius: 10px; background: rgba(255,255,255,.82); }
+.observability-summary small, .trace-stage small, .communication-panel small { color: var(--muted); }
+.observability-summary strong { color: var(--navy); font: 800 1.15rem "Manrope"; }
+.protocol-list { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .9rem; }
+.protocol { display: inline-flex; align-items: center; width: fit-content; padding: .28rem .58rem; border-radius: 99px; font-size: .7rem; font-weight: 800; letter-spacing: .04em; }
+.protocol-rest { color: #075985; background: #e0f2fe; }
+.protocol-grpc { color: #6b21a8; background: #f3e8ff; }
+.protocol-kafka { color: #9a3412; background: #ffedd5; }
+.signal-list { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: .9rem; }
+.signal { display: flex; align-items: baseline; gap: .4rem; padding: .42rem .65rem; border: 1px solid var(--border); border-radius: 8px; background: white; }
+.signal small { color: var(--muted); }
+.signal strong { color: var(--success); font-size: .82rem; }
+.signal-alert { border-color: #ffcbd2; background: #fff1f2; }
+.signal-alert strong { color: var(--danger); }
+.trace-stages { display: grid; gap: .5rem; margin-top: 1.2rem; }
+.trace-stages h3 { margin: 0 0 .2rem; font-size: .95rem; }
+.trace-stage { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .7rem; padding: .65rem .2rem; border-bottom: 1px solid #e5edf4; }
+.trace-stage:last-child { border: 0; }
+.trace-stage > div { display: grid; gap: .12rem; }
+.stage-dot { width: 10px; height: 10px; border: 2px solid #9fb3c8; border-radius: 50%; background: white; }
+.stage-dot.active { border-color: var(--blue); background: var(--blue); box-shadow: 0 0 0 4px rgba(36,107,253,.12); }
+.communication-panel { display: grid; gap: .65rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dae7fa; }
+.communication-panel article { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .45rem 1rem; padding: .85rem; border: 1px solid #dae7fa; border-radius: 10px; background: white; }
+.communication-route { display: flex; min-width: 0; align-items: center; gap: .5rem; color: var(--blue); }
+.communication-route strong { overflow: hidden; color: var(--navy); text-overflow: ellipsis; }
+.communication-panel code, .communication-panel small { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.communication-panel code { color: #486581; font-size: .75rem; }
+.jaeger-links { display: flex; flex-wrap: wrap; gap: .8rem 1.2rem; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid #dae7fa; }
+.jaeger-links a { color: var(--blue); font-size: .82rem; font-weight: 700; }
+
 .form-card { display: grid; gap: 1rem; }
 .form-grid { display: grid; gap: 1rem; }
 .two-columns { grid-template-columns: 1fr 1fr; }
@@ -225,6 +262,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
   .booking-items article { grid-template-columns: auto 1fr auto; }
   .booking-items article .status { grid-column: 2 / -1; }
   .detail-actions { flex-direction: column; }
+  .observability-heading { align-items: stretch; flex-direction: column; }
+  .observability-actions { display: grid; }
+  .observability-summary { grid-template-columns: 1fr; }
+  .communication-panel article { grid-template-columns: 1fr; }
+  .communication-panel .protocol { grid-column: 1; }
   .admin-form { grid-template-columns: 1fr; }
   .full-column { grid-column: 1; }
   .tabs { overflow-x: auto; }
