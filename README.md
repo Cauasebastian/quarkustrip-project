@@ -64,7 +64,7 @@ Para iniciar todo o produto em JVM, sem ferramentas extras:
 docker compose --profile full up -d --build
 ```
 
-Um `docker compose up` sem profile não seleciona serviços. Para parar contêineres preservando os dados, use `docker compose down` sem `-v`.
+Um `docker compose up` sem profile não seleciona serviços. Para parar contêineres de todos os profiles preservando os dados, use `docker compose --profile "*" down` sem `-v`.
 
 ### Runtime nativo
 
@@ -73,7 +73,7 @@ O profile Maven `native` compila somente `contracts`, Gateway, Booking, Flight, 
 Antes de compilar, pare a stack e execute o preflight:
 
 ```powershell
-docker compose down
+docker compose --profile "*" down
 .\scripts\check-native-prereqs.ps1
 mvn verify -Pnative
 ```

@@ -68,7 +68,7 @@ if ($Metrics) { $profileArguments += @("--profile", "metrics") }
 
 Push-Location $repoRoot
 try {
-    Invoke-Compose @("down", "--remove-orphans")
+    Invoke-Compose @("--profile", "*", "down", "--remove-orphans")
 
     $upArguments = $profileArguments + @("up", "-d")
     if (-not $NoBuild) { $upArguments += "--build" }

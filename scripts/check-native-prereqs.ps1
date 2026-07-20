@@ -41,7 +41,7 @@ $runningContainers = @(
 
 if ($runningContainers.Count -gt 0) {
     $names = $runningContainers -join ", "
-    Fail "A stack ainda esta em execucao ($names). Execute 'docker compose down' sem '-v' antes do build nativo."
+    Fail "A stack ainda esta em execucao ($names). Execute docker compose --profile '*' down sem '-v' antes do build nativo."
 }
 
 try {
