@@ -39,6 +39,7 @@ import org.sebastiandev.trip.contracts.grpc.Money;
 import org.sebastiandev.trip.contracts.grpc.MutinyBookingCommandServiceGrpc;
 import org.sebastiandev.trip.contracts.grpc.TransportItemRequest;
 import org.sebastiandev.trip.gateway.security.CurrentUser;
+import org.sebastiandev.trip.gateway.observability.BookingObservabilityService;
 
 @Path("/api/v1/bookings")
 @Produces(MediaType.APPLICATION_JSON)
@@ -47,6 +48,7 @@ import org.sebastiandev.trip.gateway.security.CurrentUser;
 public class BookingResource {
     @Inject @GrpcClient("booking") MutinyBookingCommandServiceGrpc.MutinyBookingCommandServiceStub booking;
     @Inject CurrentUser user;
+    @Inject BookingObservabilityService observability;
 
     @POST
     public Uni<Response> create(
@@ -90,6 +92,12 @@ public class BookingResource {
         return booking.getBooking(GetBookingRequest.newBuilder()
                         .setBookingId(id).setRequesterUserId(user.id().toString()).setAdmin(user.admin()).build())
                 .map(result -> view(result.getBooking()));
+    }
+
+    @GET
+    @Path("/{id}/observability")
+    public Uni<BookingObservabilityModels.Summary> observability(@PathParam("id") String id) {
+        return observability.get(id, user.id(), user.admin());
     }
 
     @POST

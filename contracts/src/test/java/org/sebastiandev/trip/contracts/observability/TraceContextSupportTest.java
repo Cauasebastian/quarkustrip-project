@@ -65,6 +65,7 @@ class TraceContextSupportTest {
 
         assertTrue(snapshot.present());
         assertTrue(snapshot.traceParent().matches("00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]"));
+        assertEquals(root.getSpanContext().getTraceId(), snapshot.traceId().orElseThrow());
         assertEquals(root.getSpanContext().getTraceId(),
                 Span.fromContext(TraceContextSupport.restore(snapshot)).getSpanContext().getTraceId());
     }
@@ -74,6 +75,9 @@ class TraceContextSupportTest {
         Context restored = TraceContextSupport.restore(new TraceContextSnapshot("invalid", "vendor=value"));
 
         assertFalse(Span.fromContext(restored).getSpanContext().isValid());
+        assertTrue(new TraceContextSnapshot("invalid", null).traceId().isEmpty());
+        assertTrue(new TraceContextSnapshot(
+                "00-00000000000000000000000000000000-1234567890abcdef-01", null).traceId().isEmpty());
     }
 
     @Test

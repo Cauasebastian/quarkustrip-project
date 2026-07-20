@@ -8,6 +8,7 @@ import org.sebastiandev.trip.booking.domain.BookingItem;
 import org.sebastiandev.trip.contracts.grpc.BookingItemView;
 import org.sebastiandev.trip.contracts.grpc.BookingView;
 import org.sebastiandev.trip.contracts.grpc.Money;
+import org.sebastiandev.trip.contracts.observability.TraceContextSnapshot;
 
 @ApplicationScoped
 public class BookingMapper {
@@ -20,6 +21,8 @@ public class BookingMapper {
                 .setCreatedAt(timestamp(booking.createdAt))
                 .setUpdatedAt(timestamp(booking.updatedAt));
         if (booking.failureCode != null) builder.setFailureCode(booking.failureCode);
+        new TraceContextSnapshot(booking.sagaTraceParent, booking.sagaTraceState).traceId()
+                .ifPresent(builder::setTraceId);
         booking.items.forEach(item -> builder.addItems(toView(item, booking.currency)));
         return builder.build();
     }

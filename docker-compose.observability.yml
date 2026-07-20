@@ -8,7 +8,9 @@ x-jaeger-dependency: &jaeger-dependency
 
 services:
   api-gateway-service:
-    environment: *otel-environment
+    environment:
+      <<: *otel-environment
+      JAEGER_QUERY_URL: http://jaeger:16686
     depends_on: *jaeger-dependency
 
   booking-service:

@@ -111,6 +111,7 @@ message BookingView {
   string failure_code = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
+  string trace_id = 9;
 }
 
 message GetBookingResponse { BookingView booking = 1; }
