@@ -43,6 +43,8 @@ Recursos ficam `HELD` por até 15 minutos. O pagamento ocorre antes da confirma�
 
 Requisitos: Docker Compose. O build das aplicações usa Java 21 e Node 24 dentro das imagens.
 
+O Keycloak também usa uma imagem local pré-otimizada. O `kc.sh build` é executado durante `docker compose ... --build`; nos reinícios seguintes o contêiner usa `start --optimized` e não repete a augmentation do Quarkus.
+
 O Compose usa profiles explícitos para impedir que toda a plataforma seja iniciada por engano:
 
 | Profile | Conteúdo |
