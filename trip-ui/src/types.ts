@@ -64,6 +64,7 @@ export interface BookingItem {
 export interface Booking {
   id: string;
   userId: string;
+  createdByUserId: string;
   status: BookingStatus;
   total: Money;
   items: BookingItem[];
@@ -135,6 +136,13 @@ export interface Profile {
   preferencesJson: string;
 }
 
+export interface ProfilePage {
+  items: Profile[];
+  page: number;
+  size: number;
+  totalElements: number;
+}
+
 export type BookingRequestItem =
   | { type: "FLIGHT"; resourceId: string; seatNumber: string }
   | { type: "HOTEL"; resourceId: string; checkIn: string; checkOut: string }
@@ -146,6 +154,33 @@ export interface DraftItem {
   detail: string;
   price: Money;
   request: BookingRequestItem;
+}
+
+export interface TravelPackageItem {
+  id: string;
+  item: BookingRequestItem;
+  type: BookingRequestItem["type"];
+  resourceId: string;
+  displayPrice: Money;
+  label: string;
+  detail: string;
+}
+
+export interface TravelPackage {
+  id: string;
+  name: string;
+  description: string;
+  currency: string;
+  items: TravelPackageItem[];
+  createdAt: string;
+}
+
+export interface TravelPackagePage {
+  items: TravelPackage[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
 }
 
 export interface ApiErrorBody {

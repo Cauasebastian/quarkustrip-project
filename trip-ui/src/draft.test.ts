@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAddDraftItem } from "./draft";
+import { canAddDraftItem, canAddDraftItems } from "./draft";
 import type { DraftItem } from "./types";
 
 const flight: DraftItem = {
@@ -15,5 +15,13 @@ describe("booking draft", () => {
 
   it("rejects mixed currencies", () => {
     expect(canAddDraftItem([flight], { ...flight, id: "usd", price: { currency: "USD", amountMinor: 100 } })).toBe(false);
+  });
+
+  it("adds a complete package only when every item uses the draft currency", () => {
+    const hotel = { ...flight, id: "hotel", request: {
+      type: "HOTEL" as const, resourceId: "room-id", checkIn: "2026-08-01", checkOut: "2026-08-03"
+    } };
+    expect(canAddDraftItems([], [flight, hotel])).toBe(true);
+    expect(canAddDraftItems([flight], [{ ...hotel, price: { currency: "USD", amountMinor: 100 } }])).toBe(false);
   });
 });

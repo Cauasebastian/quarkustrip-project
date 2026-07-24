@@ -19,6 +19,6 @@ describe("Keycloak authentication actions", () => {
 
     await registerWithKeycloak();
 
-    expect(register).toHaveBeenCalledWith({ redirectUri: window.location.href, locale: "pt-BR" });
+    expect(register).toHaveBeenCalledWith({ redirectUri: `${window.location.origin}/profile`, locale: "pt-BR" });
   });
 });

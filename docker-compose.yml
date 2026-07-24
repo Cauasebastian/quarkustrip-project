@@ -134,6 +134,20 @@ services:
       timeout: 5s
       retries: 30
 
+  keycloak-bootstrap:
+    profiles: ["core", "full"]
+    image: quarkus-trip-keycloak:26.1.4-optimized
+    restart: "no"
+    entrypoint: ["/bin/bash", "/opt/keycloak/bootstrap/bootstrap-operator.sh"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./infra/keycloak/bootstrap-operator.sh:/opt/keycloak/bootstrap/bootstrap-operator.sh:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
   mailpit:
     profiles: ["full"]
     image: axllent/mailpit:v1.24.0
@@ -323,6 +337,7 @@ services:
         -Djava.util.logging.manager=org.jboss.logmanager.LogManager
     depends_on:
       keycloak: { condition: service_healthy }
+      keycloak-bootstrap: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       booking-service: { condition: service_healthy }
       flight-service: { condition: service_healthy }

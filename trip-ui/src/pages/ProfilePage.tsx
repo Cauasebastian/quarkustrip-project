@@ -3,15 +3,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { tripApi } from "../api";
 import { friendlyError } from "../format";
 import { ErrorNotice, Loading, PageHeader, SuccessNotice } from "../components/Ui";
+import { useAuth } from "../auth";
 
 export function ProfilePage() {
+  const { token } = useAuth();
   const queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ["profile"], queryFn: tripApi.getProfile, retry: false });
   const [form, setForm] = useState({ email: "", firstName: "", lastName: "", preferencesJson: "{}" });
   useEffect(() => {
     if (profile.data) setForm({ email: profile.data.email, firstName: profile.data.firstName,
       lastName: profile.data.lastName, preferencesJson: profile.data.preferencesJson || "{}" });
-  }, [profile.data]);
+    else if (profile.data === null) setForm({
+      email: typeof token?.email === "string" ? token.email : "",
+      firstName: typeof token?.given_name === "string" ? token.given_name : "",
+      lastName: typeof token?.family_name === "string" ? token.family_name : "",
+      preferencesJson: "{}"
+    });
+  }, [profile.data, token]);
   const save = useMutation({
     mutationFn: () => tripApi.updateProfile(form),
     onSuccess: async value => { setForm(value); await queryClient.invalidateQueries({ queryKey: ["profile"] }); }

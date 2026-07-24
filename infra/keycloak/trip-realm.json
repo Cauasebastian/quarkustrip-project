@@ -11,7 +11,7 @@
   "loginWithEmailAllowed": true,
   "verifyEmail": false,
   "defaultRoles": ["USER"],
-  "roles": { "realm": [ { "name": "USER" }, { "name": "ADMIN" } ] },
+  "roles": { "realm": [ { "name": "USER" }, { "name": "ADMIN" }, { "name": "OPERATOR" } ] },
   "clients": [
     {
       "clientId": "trip-gateway",
@@ -51,6 +51,17 @@
       "requiredActions": [],
       "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
       "realmRoles": ["USER", "ADMIN"]
+    },
+    {
+      "username": "operator",
+      "enabled": true,
+      "email": "operator@trip.local",
+      "emailVerified": true,
+      "firstName": "Trip",
+      "lastName": "Operator",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "operator", "temporary": false }],
+      "realmRoles": ["USER", "OPERATOR"]
     }
   ]
 }

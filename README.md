@@ -174,6 +174,7 @@ Usuários locais:
 
 - `demo/demo`: role `USER`.
 - `admin/admin`: roles `USER` e `ADMIN`.
+- `operator/operator`: roles `USER` e `OPERATOR`.
 
 O cadastro de novos usuários está disponível pelo botão **Criar conta** na tela inicial. Login, cadastro, mensagens e atualização obrigatória de perfil usam o tema visual `trip`; português brasileiro é o idioma padrão e inglês permanece disponível no seletor do Keycloak. A URL `/admin` pertence ao console administrativo do realm `master` e não oferece cadastro de clientes da aplicação.
 
@@ -204,10 +205,16 @@ Principais rotas:
 
 - `/`: reservas recentes.
 - `/catalog/flights`, `/catalog/hotels`, `/catalog/transports`: catálogos.
+- `/packages`: pacotes publicados pela companhia.
 - `/bookings/new`: revisão e envio do rascunho.
 - `/bookings/{id}`: polling e cancelamento da Saga.
 - `/profile`: perfil do usuário.
 - `/admin`: cadastro de catálogo, somente para `ADMIN`.
+- `/operator`: painel da companhia para catálogo, pacotes e reservas em nome de passageiros.
+
+O fluxo do operador usa o `user-service`, portanto execute o profile `full`. O passageiro precisa ter salvo seu perfil ao menos uma vez para aparecer na pesquisa por nome ou e-mail. Uma reserva criada pelo operador pertence ao passageiro selecionado e também permanece visível para o operador que a cadastrou. Pacotes reutilizam itens do rascunho e a disponibilidade real continua sendo validada pela Saga no momento da reserva.
+
+O serviço `keycloak-bootstrap` cria ou atualiza de forma idempotente a role e o usuário local `operator`, inclusive quando o volume do Keycloak já existe. Ele não remove usuários nem recria o realm.
 
 ## Verificação
 

@@ -39,6 +39,7 @@ public final class BookingApiModels {
     public record BookingSummary(
             String id,
             String userId,
+            String createdByUserId,
             String status,
             MoneyApiModel total,
             List<BookingItem> items,

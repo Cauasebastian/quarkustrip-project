@@ -24,6 +24,9 @@ public class Booking {
     @Column(name = "user_id", nullable = false)
     public UUID userId;
 
+    @Column(name = "created_by_user_id", nullable = false)
+    public UUID createdByUserId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     public BookingStatus status;

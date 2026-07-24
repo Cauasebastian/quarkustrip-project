@@ -30,6 +30,20 @@ class ApiModelsTest {
     }
 
     @Test
+    void validatesOperatorBookingDto() {
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var validator = factory.getValidator();
+            var item = new BookingApiModels.Item("FLIGHT", "flight-id", "1A",
+                    null, null, null, null);
+            var valid = new OperatorApiModels.CreateBooking(
+                    "3d568e2f-931d-41a8-9301-b475f2c24a10", "BRL", "pm_test_success", List.of(item));
+            assertTrue(validator.validate(valid).isEmpty());
+            var invalid = new OperatorApiModels.CreateBooking("", "REAL", "", List.of());
+            assertFalse(validator.validate(invalid).isEmpty());
+        }
+    }
+
+    @Test
     void serializesCamelCaseWithoutProtobufDetails() throws Exception {
         var flight = new CatalogApiModels.Flight("id", "TP100", "FOR", "GRU",
                 OffsetDateTime.parse("2026-07-20T12:00:00Z"), OffsetDateTime.parse("2026-07-20T15:00:00Z"),

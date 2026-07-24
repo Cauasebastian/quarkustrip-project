@@ -16,6 +16,7 @@ public class BookingMapper {
         BookingView.Builder builder = BookingView.newBuilder()
                 .setId(booking.id.toString())
                 .setUserId(booking.userId.toString())
+                .setCreatedByUserId(booking.createdByUserId.toString())
                 .setStatus(org.sebastiandev.trip.contracts.grpc.BookingStatus.valueOf(booking.status.name()))
                 .setTotal(Money.newBuilder().setCurrency(booking.currency).setAmountMinor(booking.totalAmountMinor))
                 .setCreatedAt(timestamp(booking.createdAt))

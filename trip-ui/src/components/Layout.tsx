@@ -3,7 +3,7 @@ import { useAuth } from "../auth";
 import { useDraft } from "../draft";
 
 export function Layout() {
-  const { isAdmin, logout, token } = useAuth();
+  const { isAdmin, isOperator, logout, token } = useAuth();
   const { items } = useDraft();
   const name = typeof token?.preferred_username === "string" ? token.preferred_username : "viajante";
 
@@ -19,8 +19,10 @@ export function Layout() {
           <NavLink to="/catalog/flights">Voos</NavLink>
           <NavLink to="/catalog/hotels">Hotéis</NavLink>
           <NavLink to="/catalog/transports">Transportes</NavLink>
+          <NavLink to="/packages">Pacotes</NavLink>
           <NavLink to="/bookings/new">Rascunho <span className="count">{items.length}</span></NavLink>
           {isAdmin && <NavLink to="/admin">Admin</NavLink>}
+          {isOperator && <NavLink to="/operator">Operador</NavLink>}
         </nav>
         <div className="user-menu">
           <NavLink to="/profile" className="user-name">{name}</NavLink>
@@ -33,7 +35,9 @@ export function Layout() {
         <NavLink to="/catalog/flights">Voos</NavLink>
         <NavLink to="/catalog/hotels">Hotéis</NavLink>
         <NavLink to="/catalog/transports">Transporte</NavLink>
+        <NavLink to="/packages">Pacotes</NavLink>
         <NavLink to="/bookings/new">Rascunho ({items.length})</NavLink>
+        {isOperator && <NavLink to="/operator">Operador</NavLink>}
       </nav>
     </div>
   );

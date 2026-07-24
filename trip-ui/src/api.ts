@@ -10,7 +10,10 @@ import type {
   Hotel,
   Money,
   Profile,
+  ProfilePage,
   Room,
+  TravelPackage,
+  TravelPackagePage,
   Transport
 } from "./types";
 
@@ -83,6 +86,33 @@ export const tripApi = {
       headers: { "Idempotency-Key": key },
       body: JSON.stringify(body)
     }),
+
+  searchOperatorUsers: (value: string, page = 0, size = 20) =>
+    request<ProfilePage>(`/api/v1/operator/users?${query({ q: value, page, size })}`),
+
+  listOperatorBookings: (page = 0, size = 20) =>
+    request<BookingPage>(`/api/v1/operator/bookings?${query({ page, size })}`),
+
+  createOperatorBooking: (body: {
+    userId: string; currency: string; paymentMethodRef: string; items: BookingRequestItem[];
+  }, key: string) => request<BookingCreated>("/api/v1/operator/bookings", {
+    method: "POST",
+    headers: { "Idempotency-Key": key },
+    body: JSON.stringify(body)
+  }),
+
+  listPackages: (page = 0, size = 20) =>
+    request<TravelPackagePage>(`/api/v1/packages?${query({ page, size })}`),
+
+  createPackage: (body: {
+    name: string;
+    description: string;
+    currency: string;
+    items: Array<{ item: BookingRequestItem; displayPrice: Money; label: string; detail: string }>;
+  }) => request<TravelPackage>("/api/v1/operator/packages", {
+    method: "POST",
+    body: JSON.stringify(body)
+  }),
 
   cancelBooking: (id: string, reason = "USER_CANCELLED") =>
     request<{ bookingId: string; status: string }>(`/api/v1/bookings/${id}/cancel`, {

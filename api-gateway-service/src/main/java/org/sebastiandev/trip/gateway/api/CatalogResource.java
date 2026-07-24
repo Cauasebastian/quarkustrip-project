@@ -64,7 +64,7 @@ public class CatalogResource {
 
     @POST
     @Path("/flights")
-    @RolesAllowed("ADMIN")
+    @RolesAllowed({"ADMIN", "OPERATOR"})
     public Uni<CatalogApiModels.Flight> createFlight(@Valid CatalogApiModels.CreateFlight body) {
         if (!body.arrivalTime().isAfter(body.departureTime())) {
             throw new BadRequestException("arrivalTime must be after departureTime");
@@ -108,7 +108,7 @@ public class CatalogResource {
 
     @POST
     @Path("/hotels")
-    @RolesAllowed("ADMIN")
+    @RolesAllowed({"ADMIN", "OPERATOR"})
     public Uni<CatalogApiModels.Hotel> createHotel(@Valid CatalogApiModels.CreateHotel body) {
         return catalog.createHotel(CreateHotelRequest.newBuilder().setName(body.name()).setAddress(body.address())
                         .setCity(body.city()).setCountry(body.country().toUpperCase()).setRating(body.rating()).build())
@@ -117,7 +117,7 @@ public class CatalogResource {
 
     @POST
     @Path("/rooms")
-    @RolesAllowed("ADMIN")
+    @RolesAllowed({"ADMIN", "OPERATOR"})
     public Uni<CatalogApiModels.Room> createRoom(@Valid CatalogApiModels.CreateRoom body) {
         return catalog.createRoom(CreateRoomRequest.newBuilder().setHotelId(body.hotelId())
                         .setRoomNumber(body.roomNumber()).setRoomType(body.roomType())
@@ -142,7 +142,7 @@ public class CatalogResource {
 
     @POST
     @Path("/transports")
-    @RolesAllowed("ADMIN")
+    @RolesAllowed({"ADMIN", "OPERATOR"})
     public Uni<CatalogApiModels.Transport> createTransport(@Valid CatalogApiModels.CreateTransport body) {
         try {
             objectMapper.readTree(body.vehicleDetailsJson());

@@ -10,9 +10,11 @@ import { NewBookingPage } from "./pages/NewBookingPage";
 import { BookingDetailsPage } from "./pages/BookingDetailsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
+import { OperatorPage } from "./pages/OperatorPage";
+import { PackagesPage } from "./pages/PackagesPage";
 
 export function App() {
-  const { authenticated, isAdmin } = useAuth();
+  const { authenticated, isAdmin, isOperator } = useAuth();
   if (!authenticated) return <LoginPage />;
 
   return (
@@ -22,10 +24,12 @@ export function App() {
         <Route path="/catalog/flights" element={<FlightsPage />} />
         <Route path="/catalog/hotels" element={<HotelsPage />} />
         <Route path="/catalog/transports" element={<TransportsPage />} />
+        <Route path="/packages" element={<PackagesPage />} />
         <Route path="/bookings/new" element={<NewBookingPage />} />
         <Route path="/bookings/:id" element={<BookingDetailsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/admin" element={isAdmin ? <AdminPage /> : <Navigate to="/" replace />} />
+        <Route path="/operator" element={isOperator ? <OperatorPage /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

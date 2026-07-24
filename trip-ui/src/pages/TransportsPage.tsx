@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { tripApi } from "../api";
+import { useAuth } from "../auth";
 import { useDraft } from "../draft";
 import { friendlyError, localDateTimeToIso } from "../format";
 import { ErrorNotice, Loading, MoneyText, PageHeader, SuccessNotice } from "../components/Ui";
@@ -11,6 +12,7 @@ interface Search { type: string; startsAt: string; endsAt: string }
 
 export function TransportsPage() {
   const { addItem, items } = useDraft();
+  const { isOperator } = useAuth();
   const [type, setType] = useState("TRANSFER");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
@@ -42,7 +44,10 @@ export function TransportsPage() {
 
   return <div className="page">
     <PageHeader eyebrow="Catálogo" title="Transportes" description="Escolha o tipo e o período de utilização."
-      action={items.length > 0 && <Link className="button button-secondary" to="/bookings/new">Ver rascunho ({items.length})</Link>} />
+      action={items.length > 0 && <Link className="button button-secondary"
+        to={isOperator ? "/operator" : "/bookings/new"}>
+        {isOperator ? "Voltar ao operador" : "Ver rascunho"} ({items.length})
+      </Link>} />
     <form className="search-panel" onSubmit={submit}>
       <label>Tipo<select value={type} onChange={event => setType(event.target.value)}><option>TRANSFER</option><option>CAR_RENTAL</option><option>SHUTTLE</option></select></label>
       <label>Início<input required type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label>

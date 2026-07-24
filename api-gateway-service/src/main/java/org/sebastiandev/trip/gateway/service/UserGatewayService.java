@@ -14,6 +14,8 @@ import org.sebastiandev.trip.contracts.grpc.GetUserProfileResponse;
 import org.sebastiandev.trip.contracts.grpc.MutinyUserProfileServiceGrpc;
 import org.sebastiandev.trip.contracts.grpc.UpsertUserProfileRequest;
 import org.sebastiandev.trip.contracts.grpc.UpsertUserProfileResponse;
+import org.sebastiandev.trip.contracts.grpc.SearchUserProfilesRequest;
+import org.sebastiandev.trip.contracts.grpc.SearchUserProfilesResponse;
 
 @ApplicationScoped
 @Timeout(value = 3, unit = ChronoUnit.SECONDS)
@@ -34,5 +36,13 @@ public class UserGatewayService {
 
     public Uni<UpsertUserProfileResponse> upsert(UpsertUserProfileRequest request) {
         return failures.classify(client.upsertProfile(request));
+    }
+
+    @Timeout(value = 2, unit = ChronoUnit.SECONDS)
+    @Retry(maxRetries = 2, delay = 100, delayUnit = ChronoUnit.MILLIS,
+            jitter = 50, jitterDelayUnit = ChronoUnit.MILLIS, maxDuration = 5,
+            durationUnit = ChronoUnit.SECONDS, retryOn = RetryableGrpcException.class)
+    public Uni<SearchUserProfilesResponse> search(SearchUserProfilesRequest request) {
+        return failures.classify(client.searchProfiles(request));
     }
 }

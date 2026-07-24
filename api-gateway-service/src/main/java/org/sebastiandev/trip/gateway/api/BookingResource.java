@@ -58,6 +58,7 @@ public class BookingResource {
         if (body == null) throw new BadRequestException("request body is required");
         CreateBookingRequest.Builder request = CreateBookingRequest.newBuilder()
                 .setUserId(user.id().toString())
+                .setCreatedByUserId(user.id().toString())
                 .setIdempotencyKey(key)
                 .setCurrency(body.currency().toUpperCase())
                 .setPaymentMethodRef(body.paymentMethodRef());
@@ -144,7 +145,8 @@ public class BookingResource {
 
     private BookingApiModels.BookingSummary view(BookingView value) {
         return new BookingApiModels.BookingSummary(
-                value.getId(), value.getUserId(), value.getStatus().name(), money(value.getTotal()),
+                value.getId(), value.getUserId(), value.getCreatedByUserId(),
+                value.getStatus().name(), money(value.getTotal()),
                 value.getItemsList().stream().map(this::itemView).toList(), value.getFailureCode(),
                 timestamp(value.getCreatedAt()), timestamp(value.getUpdatedAt()));
     }

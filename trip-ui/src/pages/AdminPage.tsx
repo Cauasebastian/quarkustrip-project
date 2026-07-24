@@ -7,9 +7,13 @@ import { ErrorNotice, PageHeader, SuccessNotice } from "../components/Ui";
 type Tab = "flight" | "hotel" | "room" | "transport";
 
 export function AdminPage() {
+  return <CatalogManagement />;
+}
+
+export function CatalogManagement({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState<Tab>("flight");
   return <div className="page">
-    <PageHeader eyebrow="Administração" title="Gerenciar catálogo" description="Cadastre ofertas para testar a jornada completa da plataforma." />
+    {!embedded && <PageHeader eyebrow="Administração" title="Gerenciar catálogo" description="Cadastre ofertas para testar a jornada completa da plataforma." />}
     <div className="tabs" role="tablist">
       {(["flight", "hotel", "room", "transport"] as Tab[]).map(value => <button role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{tabLabel(value)}</button>)}
     </div>

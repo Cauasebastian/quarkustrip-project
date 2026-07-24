@@ -78,6 +78,7 @@ message CreateBookingRequest {
   string currency = 3;
   string payment_method_ref = 4;
   repeated BookingItemRequest items = 5;
+  string created_by_user_id = 6;
 }
 
 message CreateBookingResponse {
@@ -112,6 +113,7 @@ message BookingView {
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
   string trace_id = 9;
+  string created_by_user_id = 10;
 }
 
 message GetBookingResponse { BookingView booking = 1; }
@@ -141,11 +143,71 @@ message ListUserBookingsResponse {
   int64 total_elements = 4;
 }
 
+message ListCreatedBookingsRequest {
+  string created_by_user_id = 1;
+  int32 page = 2;
+  int32 size = 3;
+}
+
+message ListCreatedBookingsResponse {
+  repeated BookingView bookings = 1;
+  int32 page = 2;
+  int32 size = 3;
+  int64 total_elements = 4;
+}
+
+message TravelPackageItemInput {
+  BookingItemRequest item = 1;
+  Money display_price = 2;
+  string label = 3;
+  string detail = 4;
+}
+
+message CreateTravelPackageRequest {
+  string name = 1;
+  string description = 2;
+  string currency = 3;
+  string created_by_user_id = 4;
+  repeated TravelPackageItemInput items = 5;
+}
+
+message TravelPackageItemView {
+  string id = 1;
+  BookingItemRequest item = 2;
+  BookingItemType type = 3;
+  string resource_id = 4;
+  Money display_price = 5;
+  string label = 6;
+  string detail = 7;
+}
+
+message TravelPackageView {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string currency = 4;
+  string created_by_user_id = 5;
+  repeated TravelPackageItemView items = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message CreateTravelPackageResponse { TravelPackageView package = 1; }
+message ListTravelPackagesRequest { int32 page = 1; int32 size = 2; }
+message ListTravelPackagesResponse {
+  repeated TravelPackageView packages = 1;
+  int32 page = 2;
+  int32 size = 3;
+  int64 total_elements = 4;
+}
+
 service BookingCommandService {
   rpc CreateBooking(CreateBookingRequest) returns (CreateBookingResponse);
   rpc GetBooking(GetBookingRequest) returns (GetBookingResponse);
   rpc CancelBooking(CancelBookingRequest) returns (CancelBookingResponse);
   rpc ListUserBookings(ListUserBookingsRequest) returns (ListUserBookingsResponse);
+  rpc ListCreatedBookings(ListCreatedBookingsRequest) returns (ListCreatedBookingsResponse);
+  rpc CreateTravelPackage(CreateTravelPackageRequest) returns (CreateTravelPackageResponse);
+  rpc ListTravelPackages(ListTravelPackagesRequest) returns (ListTravelPackagesResponse);
 }
 
 message SearchFlightsRequest { string origin = 1; string destination = 2; google.protobuf.Timestamp departs_after = 3; }
@@ -211,14 +273,25 @@ service TransportQueryService {
   rpc CreateTransport(CreateTransportRequest) returns (CreateTransportResponse);
 }
 
-message GetUserProfileRequest { string subject = 1; }
+message GetUserProfileRequest {
+  string subject = 1;
+  string id = 2;
+}
 message UpsertUserProfileRequest { string subject = 1; string email = 2; string first_name = 3; string last_name = 4; string preferences_json = 5; }
 message UserProfileView { string id = 1; string subject = 2; string email = 3; string first_name = 4; string last_name = 5; string preferences_json = 6; }
 message GetUserProfileResponse { UserProfileView profile = 1; }
 message UpsertUserProfileResponse { UserProfileView profile = 1; }
+message SearchUserProfilesRequest { string query = 1; int32 page = 2; int32 size = 3; }
+message SearchUserProfilesResponse {
+  repeated UserProfileView profiles = 1;
+  int32 page = 2;
+  int32 size = 3;
+  int64 total_elements = 4;
+}
 service UserProfileService {
   rpc GetProfile(GetUserProfileRequest) returns (GetUserProfileResponse);
   rpc UpsertProfile(UpsertUserProfileRequest) returns (UpsertUserProfileResponse);
+  rpc SearchProfiles(SearchUserProfilesRequest) returns (SearchUserProfilesResponse);
 }
 
 message GetPaymentRequest { string booking_id = 1; }

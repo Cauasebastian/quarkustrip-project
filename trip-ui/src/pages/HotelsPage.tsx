@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { tripApi } from "../api";
+import { useAuth } from "../auth";
 import { useDraft } from "../draft";
 import { friendlyError } from "../format";
 import { ErrorNotice, Loading, MoneyText, PageHeader, SuccessNotice } from "../components/Ui";
@@ -11,6 +12,7 @@ interface Search { city: string; country: string; checkIn: string; checkOut: str
 
 export function HotelsPage() {
   const { addItem, items } = useDraft();
+  const { isOperator } = useAuth();
   const [city, setCity] = useState("Fortaleza");
   const [country, setCountry] = useState("BR");
   const [checkIn, setCheckIn] = useState("");
@@ -51,7 +53,10 @@ export function HotelsPage() {
   return (
     <div className="page">
       <PageHeader eyebrow="Catálogo" title="Hotéis e quartos" description="Escolha o período para consultar disponibilidade real."
-        action={items.length > 0 && <Link className="button button-secondary" to="/bookings/new">Ver rascunho ({items.length})</Link>} />
+        action={items.length > 0 && <Link className="button button-secondary"
+          to={isOperator ? "/operator" : "/bookings/new"}>
+          {isOperator ? "Voltar ao operador" : "Ver rascunho"} ({items.length})
+        </Link>} />
       <form className="search-panel search-panel-wide" onSubmit={submit}>
         <label>Cidade<input required value={city} onChange={event => setCity(event.target.value)} /></label>
         <label>País<input required minLength={2} maxLength={2} value={country} onChange={event => setCountry(event.target.value)} /></label>

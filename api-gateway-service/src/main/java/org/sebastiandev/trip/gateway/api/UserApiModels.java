@@ -2,6 +2,7 @@ package org.sebastiandev.trip.gateway.api;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
 public final class UserApiModels {
     private UserApiModels() {
@@ -21,5 +22,8 @@ public final class UserApiModels {
             String firstName,
             String lastName,
             String preferencesJson) {
+    }
+
+    public record ProfilePage(List<Profile> items, int page, int size, long totalElements) {
     }
 }

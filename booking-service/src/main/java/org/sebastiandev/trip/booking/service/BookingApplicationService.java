@@ -67,6 +67,8 @@ public class BookingApplicationService {
         Booking booking = new Booking();
         booking.id = UUID.randomUUID();
         booking.userId = userId;
+        booking.createdByUserId = request.getCreatedByUserId().isBlank()
+                ? userId : validator.parseUuid(request.getCreatedByUserId(), "createdByUserId");
         booking.status = BookingStatus.RESERVING;
         booking.currency = request.getCurrency().toUpperCase();
         booking.paymentMethodRef = request.getPaymentMethodRef();
@@ -128,7 +130,10 @@ public class BookingApplicationService {
     public Uni<Booking> get(UUID id, UUID requesterId, boolean admin) {
         return repository.findById(id).onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
                 .invoke(booking -> {
-                    if (!admin && !booking.userId.equals(requesterId)) throw new SecurityException("booking belongs to another user");
+                    if (!admin && !booking.userId.equals(requesterId)
+                            && !booking.createdByUserId.equals(requesterId)) {
+                        throw new SecurityException("booking belongs to another user");
+                    }
                 });
     }
 
@@ -145,6 +150,19 @@ public class BookingApplicationService {
     }
 
     public record BookingPage(List<Booking> bookings, int page, int size, long totalElements) {
+    }
+
+    @WithSession
+    public Uni<BookingPage> listCreated(UUID createdByUserId, int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        Uni<Long> total = repository.count("createdByUserId", createdByUserId);
+        Uni<List<Booking>> bookings = repository
+                .find("createdByUserId", Sort.descending("createdAt"), createdByUserId)
+                .page(Page.of(safePage, safeSize))
+                .list();
+        return Uni.combine().all().unis(bookings, total).asTuple()
+                .map(result -> new BookingPage(result.getItem1(), safePage, safeSize, result.getItem2()));
     }
 
     public Uni<Booking> cancel(UUID id, UUID requesterId, boolean admin, String reason) {

@@ -17,6 +17,12 @@ import org.sebastiandev.trip.contracts.grpc.GetBookingRequest;
 import org.sebastiandev.trip.contracts.grpc.GetBookingResponse;
 import org.sebastiandev.trip.contracts.grpc.ListUserBookingsRequest;
 import org.sebastiandev.trip.contracts.grpc.ListUserBookingsResponse;
+import org.sebastiandev.trip.contracts.grpc.CreateTravelPackageRequest;
+import org.sebastiandev.trip.contracts.grpc.CreateTravelPackageResponse;
+import org.sebastiandev.trip.contracts.grpc.ListCreatedBookingsRequest;
+import org.sebastiandev.trip.contracts.grpc.ListCreatedBookingsResponse;
+import org.sebastiandev.trip.contracts.grpc.ListTravelPackagesRequest;
+import org.sebastiandev.trip.contracts.grpc.ListTravelPackagesResponse;
 import org.sebastiandev.trip.contracts.grpc.MutinyBookingCommandServiceGrpc;
 
 @ApplicationScoped
@@ -50,5 +56,25 @@ public class BookingGatewayService {
             durationUnit = ChronoUnit.SECONDS, retryOn = RetryableGrpcException.class)
     public Uni<ListUserBookingsResponse> list(ListUserBookingsRequest request) {
         return failures.classify(client.listUserBookings(request));
+    }
+
+    @Timeout(value = 2, unit = ChronoUnit.SECONDS)
+    @Retry(maxRetries = 2, delay = 100, delayUnit = ChronoUnit.MILLIS,
+            jitter = 50, jitterDelayUnit = ChronoUnit.MILLIS, maxDuration = 5,
+            durationUnit = ChronoUnit.SECONDS, retryOn = RetryableGrpcException.class)
+    public Uni<ListCreatedBookingsResponse> listCreated(ListCreatedBookingsRequest request) {
+        return failures.classify(client.listCreatedBookings(request));
+    }
+
+    public Uni<CreateTravelPackageResponse> createPackage(CreateTravelPackageRequest request) {
+        return failures.classify(client.createTravelPackage(request));
+    }
+
+    @Timeout(value = 2, unit = ChronoUnit.SECONDS)
+    @Retry(maxRetries = 2, delay = 100, delayUnit = ChronoUnit.MILLIS,
+            jitter = 50, jitterDelayUnit = ChronoUnit.MILLIS, maxDuration = 5,
+            durationUnit = ChronoUnit.SECONDS, retryOn = RetryableGrpcException.class)
+    public Uni<ListTravelPackagesResponse> listPackages(ListTravelPackagesRequest request) {
+        return failures.classify(client.listTravelPackages(request));
     }
 }

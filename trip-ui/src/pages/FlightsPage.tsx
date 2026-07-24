@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { tripApi } from "../api";
+import { useAuth } from "../auth";
 import { useDraft } from "../draft";
 import { formatDateTime, friendlyError, localDateTimeToIso } from "../format";
 import { ErrorNotice, Loading, MoneyText, PageHeader, SuccessNotice } from "../components/Ui";
@@ -11,6 +12,7 @@ interface Search { origin: string; destination: string; departsAfter: string }
 
 export function FlightsPage() {
   const { addItem, items } = useDraft();
+  const { isOperator } = useAuth();
   const [origin, setOrigin] = useState("FOR");
   const [destination, setDestination] = useState("GRU");
   const [departsAfter, setDepartsAfter] = useState("");
@@ -44,7 +46,10 @@ export function FlightsPage() {
   return (
     <div className="page">
       <PageHeader eyebrow="Catálogo" title="Encontre seu voo" description="Consulte assentos disponíveis e adicione um ao rascunho."
-        action={items.length > 0 && <Link className="button button-secondary" to="/bookings/new">Ver rascunho ({items.length})</Link>} />
+        action={items.length > 0 && <Link className="button button-secondary"
+          to={isOperator ? "/operator" : "/bookings/new"}>
+          {isOperator ? "Voltar ao operador" : "Ver rascunho"} ({items.length})
+        </Link>} />
       <form className="search-panel" onSubmit={submit}>
         <label>Origem<input required minLength={3} maxLength={3} value={origin} onChange={event => setOrigin(event.target.value)} placeholder="FOR" /></label>
         <span className="search-separator">→</span>
