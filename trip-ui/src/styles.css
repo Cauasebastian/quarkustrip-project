@@ -219,6 +219,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
 .login-panel { display: grid; place-items: center; padding: 2rem; background: #eef3f8; }
 .login-card { width: min(420px, 100%); padding: 2.2rem; border: 1px solid white; border-radius: 20px; background: white; box-shadow: 0 28px 80px rgba(0,0,0,.18); }
 .login-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 1.5rem; border-radius: 14px; color: white; background: var(--blue); font-size: 1.4rem; }
+.auth-actions { display: grid; gap: .7rem; }
 .dev-credentials { display: grid; gap: .45rem; margin-top: 1.2rem; padding: .9rem; border-radius: 10px; background: #f4f7fa; color: var(--muted); font-size: .78rem; }
 .dev-credentials code { color: var(--navy); }
 .startup-error { display: grid; place-items: center; align-content: center; min-height: 100vh; padding: 2rem; text-align: center; }

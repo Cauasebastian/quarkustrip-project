@@ -1,7 +1,13 @@
 {
   "realm": "trip",
+  "displayName": "Trip Platform",
   "enabled": true,
+  "loginTheme": "trip",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR", "en"],
+  "defaultLocale": "pt-BR",
   "registrationAllowed": true,
+  "resetPasswordAllowed": false,
   "loginWithEmailAllowed": true,
   "verifyEmail": false,
   "defaultRoles": ["USER"],

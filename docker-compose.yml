@@ -337,6 +337,7 @@ services:
         VITE_KEYCLOAK_URL: http://localhost:8180
         VITE_KEYCLOAK_REALM: trip
         VITE_KEYCLOAK_CLIENT_ID: trip-gateway
+        VITE_KEYCLOAK_LOCALE: pt-BR
         VITE_SHOW_DEV_CREDENTIALS: "true"
         VITE_JAEGER_BASE_URL: ${JAEGER_PUBLIC_URL:-http://localhost:16686}
     restart: unless-stopped

@@ -175,7 +175,18 @@ Usuários locais:
 - `demo/demo`: role `USER`.
 - `admin/admin`: roles `USER` e `ADMIN`.
 
-O cadastro de novos usuários está disponível pelo link **Register** aberto a partir da UI. A URL `/admin` do Keycloak pertence ao console administrativo do realm `master` e não oferece cadastro de clientes da aplicação.
+O cadastro de novos usuários está disponível pelo botão **Criar conta** na tela inicial. Login, cadastro, mensagens e atualização obrigatória de perfil usam o tema visual `trip`; português brasileiro é o idioma padrão e inglês permanece disponível no seletor do Keycloak. A URL `/admin` pertence ao console administrativo do realm `master` e não oferece cadastro de clientes da aplicação.
+
+### Tema do Keycloak
+
+O tema está em `infra/keycloak/themes/trip` e herda de `keycloak.v2`. Ele adiciona somente CSS, mensagens e assets locais, evitando cópias dos templates FreeMarker da distribuição. A imagem precisa ser reconstruída sempre que esses arquivos mudarem:
+
+```powershell
+docker compose --profile core build keycloak
+docker compose --profile core up -d --force-recreate keycloak trip-ui
+```
+
+Se o navegador ainda mostrar o tema anterior, faça uma atualização forçada (`Ctrl+F5`). Não use `down -v` para atualizar o tema: remover volumes também apagaria os dados locais. Recuperação de senha e verificação de e-mail continuam desabilitadas no profile `core`, que não possui SMTP.
 
 ## Desenvolvimento da UI
 

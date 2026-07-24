@@ -7,6 +7,8 @@ export const keycloak = new Keycloak({
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID ?? "trip-gateway"
 });
 
+const defaultKeycloakLocale = import.meta.env.VITE_KEYCLOAK_LOCALE ?? "pt-BR";
+
 export async function initializeAuthentication(): Promise<boolean> {
   return keycloak.init({
     onLoad: "check-sso",
@@ -16,11 +18,20 @@ export async function initializeAuthentication(): Promise<boolean> {
   });
 }
 
+export async function loginWithKeycloak(): Promise<void> {
+  await keycloak.login({ redirectUri: window.location.href, locale: defaultKeycloakLocale });
+}
+
+export async function registerWithKeycloak(): Promise<void> {
+  await keycloak.register({ redirectUri: window.location.href, locale: defaultKeycloakLocale });
+}
+
 interface AuthContextValue {
   authenticated: boolean;
   token: KeycloakTokenParsed | undefined;
   isAdmin: boolean;
   login: () => Promise<void>;
+  register: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -58,7 +69,8 @@ export function AuthProvider({ initialAuthenticated, children }: {
     authenticated,
     token,
     isAdmin: keycloak.realmAccess?.roles.includes("ADMIN") ?? false,
-    login: async () => { await keycloak.login({ redirectUri: window.location.href }); },
+    login: loginWithKeycloak,
+    register: registerWithKeycloak,
     logout: async () => { await keycloak.logout({ redirectUri: window.location.origin }); }
   }), [authenticated, token]);
 
