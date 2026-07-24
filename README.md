@@ -211,10 +211,13 @@ Principais rotas:
 - `/profile`: perfil do usuário.
 - `/admin`: cadastro de catálogo, somente para `ADMIN`.
 - `/operator`: painel da companhia para catálogo, pacotes e reservas em nome de passageiros.
+- `/operator/access`: entrada e cadastro orientado para contas de companhia.
 
 O fluxo do operador usa o `user-service`, portanto execute o profile `full`. O passageiro precisa ter salvo seu perfil ao menos uma vez para aparecer na pesquisa por nome ou e-mail. Uma reserva criada pelo operador pertence ao passageiro selecionado e também permanece visível para o operador que a cadastrou. Pacotes reutilizam itens do rascunho e a disponibilidade real continua sendo validada pela Saga no momento da reserva.
 
 O serviço `keycloak-bootstrap` cria ou atualiza de forma idempotente a role e o usuário local `operator`, inclusive quando o volume do Keycloak já existe. Ele não remove usuários nem recria o realm.
+
+O cadastro iniciado em `/operator/access` cria a conta responsável, mas não concede privilégios empresariais automaticamente. Um administrador deve atribuir a role `OPERATOR`; no ambiente local, `operator/operator` já é provisionado pelo bootstrap.
 
 ## Verificação
 

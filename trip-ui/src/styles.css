@@ -222,6 +222,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
 .auth-actions { display: grid; gap: .7rem; }
 .dev-credentials { display: grid; gap: .45rem; margin-top: 1.2rem; padding: .9rem; border-radius: 10px; background: #f4f7fa; color: var(--muted); font-size: .78rem; }
 .dev-credentials code { color: var(--navy); }
+.operator-access-link { display: flex; align-items: center; gap: .8rem; margin-top: 1rem; padding: .85rem; border: 1px solid #cbd8e6; border-radius: 12px; color: var(--navy); background: #f8fbff; }
+.operator-access-link:hover { border-color: var(--blue); background: #eef4ff; }
+.operator-access-link span:last-child { display: grid; gap: .15rem; }
+.operator-access-link small { color: var(--muted); }
+.operator-access-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: white; background: var(--navy); font-weight: 800; }
+.operator-access-copy { background: radial-gradient(circle at 18% 18%, rgba(65,199,199,.2), transparent 32%), radial-gradient(circle at 80% 75%, rgba(36,107,253,.28), transparent 32%), #081d31; }
+.operator-access-benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin-top: 2rem; }
+.operator-access-benefits article { display: grid; gap: .35rem; padding: 1rem; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; background: rgba(255,255,255,.06); }
+.operator-access-benefits strong { color: white; }
+.operator-access-benefits span { color: #bcccdc; font-size: .82rem; }
+.operator-login-icon { background: var(--navy); }
+.operator-login-card .eyebrow { margin-bottom: .35rem; }
+.operator-registration { display: grid; gap: .55rem; margin-top: 1.2rem; padding-top: 1.2rem; border-top: 1px solid var(--border); }
+.operator-registration p { margin: 0; font-size: .86rem; }
+.operator-access-warning { margin-bottom: 1rem; padding: .85rem; border: 1px solid #f0c36a; border-radius: 10px; color: #704a00; background: #fff8e6; font-size: .84rem; }
+.operator-back-link { display: block; margin-top: 1rem; color: var(--muted); text-align: center; font-size: .84rem; }
 .startup-error { display: grid; place-items: center; align-content: center; min-height: 100vh; padding: 2rem; text-align: center; }
 .mobile-nav { display: none; }
 

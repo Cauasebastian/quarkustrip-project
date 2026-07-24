@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { keycloak, loginWithKeycloak, registerWithKeycloak } from "./auth";
+import {
+  keycloak,
+  loginOperatorWithKeycloak,
+  loginWithKeycloak,
+  registerOperatorWithKeycloak,
+  registerWithKeycloak
+} from "./auth";
 
 describe("Keycloak authentication actions", () => {
   afterEach(() => {
@@ -20,5 +26,29 @@ describe("Keycloak authentication actions", () => {
     await registerWithKeycloak();
 
     expect(register).toHaveBeenCalledWith({ redirectUri: `${window.location.origin}/profile`, locale: "pt-BR" });
+  });
+
+  it("opens the operator login with a dedicated return route", async () => {
+    const login = vi.spyOn(keycloak, "login").mockResolvedValue(undefined);
+
+    await loginOperatorWithKeycloak();
+
+    expect(login).toHaveBeenCalledWith({
+      redirectUri: `${window.location.origin}/operator/access`,
+      locale: "pt-BR",
+      loginHint: "operator",
+      prompt: "login"
+    });
+  });
+
+  it("opens registration from the operator access route", async () => {
+    const register = vi.spyOn(keycloak, "register").mockResolvedValue(undefined);
+
+    await registerOperatorWithKeycloak();
+
+    expect(register).toHaveBeenCalledWith({
+      redirectUri: `${window.location.origin}/operator/access`,
+      locale: "pt-BR"
+    });
   });
 });

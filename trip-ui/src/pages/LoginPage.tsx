@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 
 export function LoginPage() {
@@ -31,6 +32,10 @@ export function LoginPage() {
               Criar conta
             </button>
           </div>
+          <Link className="operator-access-link" to="/operator/access">
+            <span className="operator-access-mark">↗</span>
+            <span><strong>Sou operador</strong><small>Acessar a área da companhia</small></span>
+          </Link>
           {showCredentials && (
             <div className="dev-credentials">
               <strong>Contas de desenvolvimento</strong>

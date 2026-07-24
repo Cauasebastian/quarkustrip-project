@@ -26,6 +26,22 @@ export async function registerWithKeycloak(): Promise<void> {
   await keycloak.register({ redirectUri: `${window.location.origin}/profile`, locale: defaultKeycloakLocale });
 }
 
+export async function loginOperatorWithKeycloak(): Promise<void> {
+  await keycloak.login({
+    redirectUri: `${window.location.origin}/operator/access`,
+    locale: defaultKeycloakLocale,
+    loginHint: "operator",
+    prompt: "login"
+  });
+}
+
+export async function registerOperatorWithKeycloak(): Promise<void> {
+  await keycloak.register({
+    redirectUri: `${window.location.origin}/operator/access`,
+    locale: defaultKeycloakLocale
+  });
+}
+
 interface AuthContextValue {
   authenticated: boolean;
   token: KeycloakTokenParsed | undefined;
@@ -33,6 +49,8 @@ interface AuthContextValue {
   isOperator: boolean;
   login: () => Promise<void>;
   register: () => Promise<void>;
+  loginOperator: () => Promise<void>;
+  registerOperator: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -73,6 +91,8 @@ export function AuthProvider({ initialAuthenticated, children }: {
     isOperator: keycloak.realmAccess?.roles.some(role => role === "OPERATOR" || role === "ADMIN") ?? false,
     login: loginWithKeycloak,
     register: registerWithKeycloak,
+    loginOperator: loginOperatorWithKeycloak,
+    registerOperator: registerOperatorWithKeycloak,
     logout: async () => { await keycloak.logout({ redirectUri: window.location.origin }); }
   }), [authenticated, token]);
 
