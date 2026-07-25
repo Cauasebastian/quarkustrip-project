@@ -50,7 +50,7 @@
       "lastName": "Admin",
       "requiredActions": [],
       "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
-      "realmRoles": ["USER", "ADMIN"]
+      "realmRoles": ["USER", "ADMIN", "OPERATOR"]
     },
     {
       "username": "operator",

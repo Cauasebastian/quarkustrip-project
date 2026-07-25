@@ -28,3 +28,10 @@ fi
 
 "${KCADM}" set-password -r trip --username operator --new-password operator
 "${KCADM}" add-roles -r trip --uusername operator --rolename USER --rolename OPERATOR
+
+# O administrador local também atua como operador no ambiente de desenvolvimento.
+# A associação é reaplicada a cada inicialização para contemplar volumes existentes.
+if "${KCADM}" get users -r trip -q exact=true -q username=admin |
+  grep -Eq '"username"[[:space:]]*:[[:space:]]*"admin"'; then
+  "${KCADM}" add-roles -r trip --uusername admin --rolename OPERATOR
+fi

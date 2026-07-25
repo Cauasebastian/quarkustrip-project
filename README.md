@@ -173,7 +173,7 @@ Para conferir quais portas foram efetivamente publicadas, use `docker compose --
 Usuários locais:
 
 - `demo/demo`: role `USER`.
-- `admin/admin`: roles `USER` e `ADMIN`.
+- `admin/admin`: roles `USER`, `ADMIN` e `OPERATOR`; pode acessar tanto a administração quanto o painel da companhia.
 - `operator/operator`: roles `USER` e `OPERATOR`.
 
 O cadastro de novos usuários está disponível pelo botão **Criar conta** na tela inicial. Login, cadastro, mensagens e atualização obrigatória de perfil usam o tema visual `trip`; português brasileiro é o idioma padrão e inglês permanece disponível no seletor do Keycloak. A URL `/admin` pertence ao console administrativo do realm `master` e não oferece cadastro de clientes da aplicação.
@@ -218,6 +218,14 @@ O fluxo do operador usa o `user-service`, portanto execute o profile `full`. O p
 O serviço `keycloak-bootstrap` cria ou atualiza de forma idempotente a role e o usuário local `operator`, inclusive quando o volume do Keycloak já existe. Ele não remove usuários nem recria o realm.
 
 O cadastro iniciado em `/operator/access` cria a conta responsável, mas não concede privilégios empresariais automaticamente. Um administrador deve atribuir a role `OPERATOR`; no ambiente local, `operator/operator` já é provisionado pelo bootstrap.
+
+As autorizações ficam no banco persistido do Keycloak, não na tabela de perfis do `user-service`. Para facilitar os testes locais, o bootstrap também atribui `OPERATOR` ao usuário existente `admin`. Depois de atualizar o projeto, basta iniciar o Keycloak e o bootstrap:
+
+```powershell
+docker compose --profile full up -d keycloak keycloak-bootstrap
+```
+
+Em seguida, entre por `/operator/access` com `admin/admin` ou `operator/operator`. Para promover outra conta manualmente, abra o Admin Console do Keycloak, selecione o realm `trip`, acesse **Users → usuário → Role mapping → Assign role** e atribua `OPERATOR`.
 
 ## Verificação
 
