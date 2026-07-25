@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -38,10 +39,21 @@ public final class CatalogApiModels {
             @NotNull @Valid MoneyApiModel seatPrice) {
     }
 
-    public record Hotel(String id, String name, String address, String city, String country, int rating) {
+    public record Hotel(
+            String id,
+            String name,
+            String address,
+            String city,
+            String country,
+            int rating,
+            boolean available) {
     }
 
-    public record Hotels(List<Hotel> items) {
+    public record Hotels(
+            List<Hotel> items,
+            LocalDate checkIn,
+            LocalDate checkOut,
+            boolean defaultPeriod) {
     }
 
     public record CreateHotel(
@@ -80,7 +92,11 @@ public final class CatalogApiModels {
             boolean available) {
     }
 
-    public record Transports(List<Transport> items) {
+    public record Transports(
+            List<Transport> items,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            boolean defaultPeriod) {
     }
 
     public record CreateTransport(

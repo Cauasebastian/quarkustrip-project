@@ -6,7 +6,34 @@ import org.hibernate.reactive.mutiny.Mutiny;
 
 @GrpcService public class HotelGrpcService implements HotelQueryService {
  @Inject HotelRepository hotels; @Inject RoomRepository rooms; @Inject HotelReservationRepository reservations; @Inject Mutiny.SessionFactory sessionFactory;
- @Override @WithSession public Uni<SearchHotelsResponse> searchHotels(SearchHotelsRequest request){return hotels.find("lower(city) = ?1 and upper(country) = ?2",request.getCity().toLowerCase(),request.getCountry().toUpperCase()).list().map(values->SearchHotelsResponse.newBuilder().addAllHotels(values.stream().map(this::hotelView).toList()).build());}
+ @Override public Uni<SearchHotelsResponse> searchHotels(SearchHotelsRequest request){
+  try{
+   LocalDate in=date(request.getCheckIn()),out=date(request.getCheckOut());
+   if(!out.isAfter(in))return Uni.createFrom().failure(Status.INVALID_ARGUMENT.withDescription("checkOut must be after checkIn").asRuntimeException());
+   String city=request.getCity().trim().toLowerCase(),country=request.getCountry().trim().toUpperCase();
+   String query="""
+    select h.id,h.name,h.address,h.city,h.country,h.rating,
+      exists (
+        select 1 from rooms r
+        where r.hotel_id=h.id and r.active=true
+          and not exists (
+            select 1 from hotel_reservations hr
+            where hr.room_id=r.id and hr.status in ('HELD','CONFIRMED')
+              and hr.check_in < ?2 and hr.check_out > ?1
+          )
+      ) as available
+    from hotels h
+    where (?3 = '' or lower(h.city) = ?3)
+      and (?4 = '' or upper(h.country) = ?4)
+    order by h.name
+    """;
+   return sessionFactory.withSession(session->session.createNativeQuery(query,Object[].class)
+      .setParameter(1,in).setParameter(2,out).setParameter(3,city).setParameter(4,country).getResultList())
+    .map(rows->{SearchHotelsResponse.Builder response=SearchHotelsResponse.newBuilder();for(Object[] row:rows){response.addHotels(HotelView.newBuilder()
+      .setId(((UUID)row[0]).toString()).setName((String)row[1]).setAddress((String)row[2]).setCity((String)row[3])
+      .setCountry((String)row[4]).setRating(((Number)row[5]).intValue()).setAvailable((Boolean)row[6]));}return response.build();});
+  }catch(RuntimeException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.withDescription("invalid hotel search interval").asRuntimeException());}
+ }
  @Override @WithSession public Uni<GetRoomResponse> getRoom(GetRoomRequest request){try{UUID id=UUID.fromString(request.getRoomId());LocalDate in=date(request.getCheckIn()),out=date(request.getCheckOut());return rooms.findById(id).onItem().ifNull().failWith(Status.NOT_FOUND.asRuntimeException()).chain(room->reservations.count("roomId = ?1 and status in (?2, ?3) and checkIn < ?4 and checkOut > ?5",id,HotelReservation.Status.HELD,HotelReservation.Status.CONFIRMED,out,in).map(count->GetRoomResponse.newBuilder().setRoom(roomView(room,count==0)).build()));}catch(RuntimeException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.asRuntimeException());}}
  @Override public Uni<ListRoomsResponse> listRooms(ListRoomsRequest request){
   try{
@@ -17,9 +44,9 @@ import org.hibernate.reactive.mutiny.Mutiny;
     .map(rowsResult->{ListRoomsResponse.Builder response=ListRoomsResponse.newBuilder();for(Object[] row:rowsResult){Room room=new Room();room.id=(UUID)row[0];room.hotel=new Hotel();room.hotel.id=(UUID)row[1];room.roomNumber=(String)row[2];room.roomType=(String)row[3];room.nightlyPriceMinor=((Number)row[4]).longValue();room.currency=(String)row[5];room.active=(Boolean)row[6];response.addRooms(roomView(room,(Boolean)row[8]));}return response.build();});
   }catch(RuntimeException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.withDescription("invalid hotel or stay interval").asRuntimeException());}
  }
- @Override public Uni<CreateHotelResponse> createHotel(CreateHotelRequest request){Hotel hotel=new Hotel();hotel.id=UUID.randomUUID();hotel.name=request.getName();hotel.address=request.getAddress();hotel.city=request.getCity();hotel.country=request.getCountry().toUpperCase();hotel.rating=request.getRating();return Panache.withTransaction(()->hotels.persist(hotel)).map(value->CreateHotelResponse.newBuilder().setHotel(hotelView(value)).build());}
+ @Override public Uni<CreateHotelResponse> createHotel(CreateHotelRequest request){Hotel hotel=new Hotel();hotel.id=UUID.randomUUID();hotel.name=request.getName();hotel.address=request.getAddress();hotel.city=request.getCity();hotel.country=request.getCountry().toUpperCase();hotel.rating=request.getRating();return Panache.withTransaction(()->hotels.persist(hotel)).map(value->CreateHotelResponse.newBuilder().setHotel(hotelView(value,false)).build());}
  @Override public Uni<CreateRoomResponse> createRoom(CreateRoomRequest request){try{UUID hotelId=UUID.fromString(request.getHotelId());return Panache.withTransaction(()->hotels.findById(hotelId).onItem().ifNull().failWith(Status.NOT_FOUND.asRuntimeException()).chain(hotel->{Room room=new Room();room.id=UUID.randomUUID();room.hotel=hotel;room.roomNumber=request.getRoomNumber();room.roomType=request.getRoomType();room.nightlyPriceMinor=request.getNightlyPrice().getAmountMinor();room.currency=request.getNightlyPrice().getCurrency();room.active=true;return rooms.persist(room);})).map(room->CreateRoomResponse.newBuilder().setRoom(roomView(room,true)).build());}catch(IllegalArgumentException e){return Uni.createFrom().failure(Status.INVALID_ARGUMENT.asRuntimeException());}}
- private HotelView hotelView(Hotel h){return HotelView.newBuilder().setId(h.id.toString()).setName(h.name).setAddress(h.address).setCity(h.city).setCountry(h.country).setRating(h.rating).build();}
+ private HotelView hotelView(Hotel h,boolean available){return HotelView.newBuilder().setId(h.id.toString()).setName(h.name).setAddress(h.address).setCity(h.city).setCountry(h.country).setRating(h.rating).setAvailable(available).build();}
  private RoomView roomView(Room r,boolean available){return RoomView.newBuilder().setId(r.id.toString()).setHotelId(r.hotel.id.toString()).setRoomNumber(r.roomNumber).setRoomType(r.roomType).setNightlyPrice(Money.newBuilder().setCurrency(r.currency).setAmountMinor(r.nightlyPriceMinor)).setAvailable(available).build();}
  private LocalDate date(LocalDateValue d){return LocalDate.of(d.getYear(),d.getMonth(),d.getDay());}
 }

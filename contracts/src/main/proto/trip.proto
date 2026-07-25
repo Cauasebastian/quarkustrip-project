@@ -241,7 +241,15 @@ service FlightQueryService {
 }
 
 message SearchHotelsRequest { string city = 1; string country = 2; LocalDateValue check_in = 3; LocalDateValue check_out = 4; }
-message HotelView { string id = 1; string name = 2; string address = 3; string city = 4; string country = 5; int32 rating = 6; }
+message HotelView {
+  string id = 1;
+  string name = 2;
+  string address = 3;
+  string city = 4;
+  string country = 5;
+  int32 rating = 6;
+  bool available = 7;
+}
 message RoomView { string id = 1; string hotel_id = 2; string room_number = 3; string room_type = 4; Money nightly_price = 5; bool available = 6; }
 message SearchHotelsResponse { repeated HotelView hotels = 1; }
 message GetRoomRequest { string room_id = 1; LocalDateValue check_in = 2; LocalDateValue check_out = 3; }

@@ -35,6 +35,7 @@ import org.sebastiandev.trip.contracts.grpc.SearchHotelsRequest;
 import org.sebastiandev.trip.contracts.grpc.SearchTransportsRequest;
 import org.sebastiandev.trip.contracts.grpc.TransportView;
 import org.sebastiandev.trip.gateway.service.CatalogGatewayService;
+import org.sebastiandev.trip.gateway.service.CatalogSearchWindow;
 
 @Path("/api/v1/catalog")
 @Produces(MediaType.APPLICATION_JSON)
@@ -42,6 +43,7 @@ import org.sebastiandev.trip.gateway.service.CatalogGatewayService;
 @Authenticated
 public class CatalogResource {
     @Inject CatalogGatewayService catalog;
+    @Inject CatalogSearchWindow searchWindow;
     @Inject ObjectMapper objectMapper;
 
     @GET
@@ -84,11 +86,18 @@ public class CatalogResource {
             @QueryParam("country") String country,
             @QueryParam("checkIn") LocalDate checkIn,
             @QueryParam("checkOut") LocalDate checkOut) {
-        requireStay(city, country, checkIn, checkOut);
-        return catalog.searchHotels(SearchHotelsRequest.newBuilder().setCity(city)
-                        .setCountry(country.toUpperCase()).setCheckIn(date(checkIn)).setCheckOut(date(checkOut)).build())
+        CatalogSearchWindow.Stay stay = searchWindow.stay(checkIn, checkOut);
+        String normalizedCity = city == null ? "" : city.trim();
+        String normalizedCountry = country == null ? "" : country.trim().toUpperCase();
+        if (!normalizedCountry.isEmpty() && !normalizedCountry.matches("[A-Z]{2}")) {
+            throw new BadRequestException("country must be empty or contain a two-letter code");
+        }
+        return catalog.searchHotels(SearchHotelsRequest.newBuilder().setCity(normalizedCity)
+                        .setCountry(normalizedCountry).setCheckIn(date(stay.checkIn()))
+                        .setCheckOut(date(stay.checkOut())).build())
                 .map(result -> new CatalogApiModels.Hotels(
-                        result.getHotelsList().stream().map(this::hotel).toList()));
+                        result.getHotelsList().stream().map(this::hotel).toList(),
+                        stay.checkIn(), stay.checkOut(), stay.defaultPeriod()));
     }
 
     @GET
@@ -97,11 +106,9 @@ public class CatalogResource {
             @PathParam("hotelId") String hotelId,
             @QueryParam("checkIn") LocalDate checkIn,
             @QueryParam("checkOut") LocalDate checkOut) {
-        if (checkIn == null || checkOut == null || !checkOut.isAfter(checkIn)) {
-            throw new BadRequestException("a valid [checkIn, checkOut) interval is required");
-        }
+        CatalogSearchWindow.Stay stay = searchWindow.stay(checkIn, checkOut);
         return catalog.listRooms(ListRoomsRequest.newBuilder().setHotelId(hotelId)
-                        .setCheckIn(date(checkIn)).setCheckOut(date(checkOut)).build())
+                        .setCheckIn(date(stay.checkIn())).setCheckOut(date(stay.checkOut())).build())
                 .map(result -> new CatalogApiModels.Rooms(
                         result.getRoomsList().stream().map(this::room).toList()));
     }
@@ -131,13 +138,13 @@ public class CatalogResource {
             @QueryParam("type") String type,
             @QueryParam("startsAt") OffsetDateTime startsAt,
             @QueryParam("endsAt") OffsetDateTime endsAt) {
-        if (type == null || type.isBlank() || startsAt == null || endsAt == null || !endsAt.isAfter(startsAt)) {
-            throw new BadRequestException("type and a valid [startsAt, endsAt) interval are required");
-        }
-        return catalog.searchTransports(SearchTransportsRequest.newBuilder().setTransportType(type)
-                        .setStartsAt(timestamp(startsAt)).setEndsAt(timestamp(endsAt)).build())
+        CatalogSearchWindow.Usage usage = searchWindow.usage(startsAt, endsAt);
+        String normalizedType = type == null ? "" : type.trim();
+        return catalog.searchTransports(SearchTransportsRequest.newBuilder().setTransportType(normalizedType)
+                        .setStartsAt(timestamp(usage.startsAt())).setEndsAt(timestamp(usage.endsAt())).build())
                 .map(result -> new CatalogApiModels.Transports(
-                        result.getTransportsList().stream().map(this::transport).toList()));
+                        result.getTransportsList().stream().map(this::transport).toList(),
+                        usage.startsAt(), usage.endsAt(), usage.defaultPeriod()));
     }
 
     @POST
@@ -155,13 +162,6 @@ public class CatalogResource {
                 .map(result -> transport(result.getTransport()));
     }
 
-    private void requireStay(String city, String country, LocalDate checkIn, LocalDate checkOut) {
-        if (city == null || city.isBlank() || country == null || !country.matches("(?i)[a-z]{2}")
-                || checkIn == null || checkOut == null || !checkOut.isAfter(checkIn)) {
-            throw new BadRequestException("city, two-letter country and a valid stay interval are required");
-        }
-    }
-
     private CatalogApiModels.Flight flight(FlightView value) {
         return new CatalogApiModels.Flight(value.getId(), value.getFlightNumber(), value.getOrigin(),
                 value.getDestination(), offset(value.getDepartureTime()), offset(value.getArrivalTime()),
@@ -170,7 +170,7 @@ public class CatalogResource {
 
     private CatalogApiModels.Hotel hotel(HotelView value) {
         return new CatalogApiModels.Hotel(value.getId(), value.getName(), value.getAddress(), value.getCity(),
-                value.getCountry(), value.getRating());
+                value.getCountry(), value.getRating(), value.getAvailable());
     }
 
     private CatalogApiModels.Room room(RoomView value) {

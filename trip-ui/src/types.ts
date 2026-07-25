@@ -21,6 +21,14 @@ export interface Hotel {
   city: string;
   country: string;
   rating: number;
+  available: boolean;
+}
+
+export interface HotelSearchResult {
+  items: Hotel[];
+  checkIn: string;
+  checkOut: string;
+  defaultPeriod: boolean;
 }
 
 export interface Room {
@@ -39,6 +47,13 @@ export interface Transport {
   vehicleDetailsJson: string;
   price: Money;
   available: boolean;
+}
+
+export interface TransportSearchResult {
+  items: Transport[];
+  startsAt: string;
+  endsAt: string;
+  defaultPeriod: boolean;
 }
 
 export type BookingStatus =

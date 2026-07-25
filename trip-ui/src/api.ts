@@ -8,13 +8,15 @@ import type {
   BookingRequestItem,
   Flight,
   Hotel,
+  HotelSearchResult,
   Money,
   Profile,
   ProfilePage,
   Room,
   TravelPackage,
   TravelPackagePage,
-  Transport
+  Transport,
+  TransportSearchResult
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
@@ -124,13 +126,13 @@ export const tripApi = {
     request<{ items: Flight[] }>(`/api/v1/catalog/flights?${query({ origin, destination, departsAfter })}`),
 
   searchHotels: (city: string, country: string, checkIn: string, checkOut: string) =>
-    request<{ items: Hotel[] }>(`/api/v1/catalog/hotels?${query({ city, country, checkIn, checkOut })}`),
+    request<HotelSearchResult>(`/api/v1/catalog/hotels?${query({ city, country, checkIn, checkOut })}`),
 
   listRooms: (hotelId: string, checkIn: string, checkOut: string) =>
     request<{ items: Room[] }>(`/api/v1/catalog/hotels/${hotelId}/rooms?${query({ checkIn, checkOut })}`),
 
   searchTransports: (type: string, startsAt: string, endsAt: string) =>
-    request<{ items: Transport[] }>(`/api/v1/catalog/transports?${query({ type, startsAt, endsAt })}`),
+    request<TransportSearchResult>(`/api/v1/catalog/transports?${query({ type, startsAt, endsAt })}`),
 
   getProfile: async () => {
     try {

@@ -53,4 +53,34 @@ describe("Trip API client", () => {
       totalDurationMs: 1200
     });
   });
+
+  it("omits optional hotel and transport periods when they are empty", async () => {
+    server.use(
+      http.get("http://localhost:8080/api/v1/catalog/hotels", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        expect([...params.keys()]).toEqual([]);
+        return HttpResponse.json({
+          items: [],
+          checkIn: "2026-07-26",
+          checkOut: "2026-07-29",
+          defaultPeriod: true
+        });
+      }),
+      http.get("http://localhost:8080/api/v1/catalog/transports", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        expect(params.get("type")).toBe("CAR_RENTAL");
+        expect(params.has("startsAt")).toBe(false);
+        expect(params.has("endsAt")).toBe(false);
+        return HttpResponse.json({
+          items: [],
+          startsAt: "2026-07-26T09:00:00Z",
+          endsAt: "2026-07-29T09:00:00Z",
+          defaultPeriod: true
+        });
+      })
+    );
+
+    await expect(tripApi.searchHotels("", "", "", "")).resolves.toMatchObject({ defaultPeriod: true });
+    await expect(tripApi.searchTransports("CAR_RENTAL", "", "")).resolves.toMatchObject({ defaultPeriod: true });
+  });
 });
