@@ -1,11 +1,36 @@
+import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth";
+import { tripApi } from "../api";
 import { useDraft } from "../draft";
 
 export function Layout() {
   const { isAdmin, isOperator, logout, token } = useAuth();
   const { items } = useDraft();
+  const queryClient = useQueryClient();
+  const profile = useQuery({ queryKey: ["profile"], queryFn: tripApi.getProfile, retry: false });
+  const syncStarted = useRef(false);
+  const syncProfile = useMutation({
+    mutationFn: tripApi.updateProfile,
+    onSuccess: value => queryClient.setQueryData(["profile"], value)
+  });
   const name = typeof token?.preferred_username === "string" ? token.preferred_username : "viajante";
+  const email = typeof token?.email === "string" ? token.email : "";
+  const firstName = typeof token?.given_name === "string" ? token.given_name : "";
+  const lastName = typeof token?.family_name === "string" ? token.family_name : "";
+
+  useEffect(() => {
+    if (profile.data !== null || syncStarted.current) return;
+    if (!email) return;
+    syncStarted.current = true;
+    syncProfile.mutate({
+      email,
+      firstName,
+      lastName,
+      preferencesJson: "{}"
+    });
+  }, [profile.data, email, firstName, lastName]);
 
   return (
     <div className="app-shell">

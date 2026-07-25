@@ -111,30 +111,75 @@ export function OperatorPage() {
       </div>
 
       {tab === "reservations" && (
+        <>
+        <ReservationProgress passenger={selectedPassenger} itemCount={items.length} />
         <div className="operator-workspace">
           <div className="operator-main-card">
-            <h2>Nova reserva para passageiro</h2>
-            <p>Pesquise um perfil existente e use os itens selecionados no catálogo.</p>
+            <section className="operator-flow-section">
+            <div className="operator-section-heading">
+              <span>1</span>
+              <div>
+                <h2>Para quem é a viagem?</h2>
+                <p>Busque pelo nome de usuário, nome completo ou e-mail do passageiro.</p>
+              </div>
+            </div>
             <label>Buscar passageiro
               <input value={search} onChange={event => setSearch(event.target.value)}
-                placeholder="Nome ou e-mail" />
+                placeholder="Ex.: cauasebastian, Maria ou email@exemplo.com" />
+              <small>Digite pelo menos 2 caracteres. Exemplo: <strong>cauasebastian</strong>.</small>
             </label>
             {users.isFetching && <Loading label="Buscando passageiros..." />}
             {users.isError && <ErrorNotice message={friendlyError(users.error)} />}
             {users.data && (
               <div className="passenger-results">
                 {users.data.items.map(profile => (
-                  <button key={profile.id} className={selectedPassenger?.id === profile.id ? "selected" : ""}
+                  <button type="button" key={profile.id}
+                    aria-pressed={selectedPassenger?.id === profile.id}
+                    className={selectedPassenger?.id === profile.id ? "selected" : ""}
                     onClick={() => setSelectedPassenger(profile)}>
                     <span className="passenger-avatar">{initials(profile)}</span>
-                    <span><strong>{fullName(profile)}</strong><small>{profile.email}</small></span>
+                    <span><strong>{fullName(profile)}</strong>
+                      <small className="passenger-username">@{profile.username}</small>
+                      <small>{profile.email}</small></span>
+                    <span className="passenger-select-label">
+                      {selectedPassenger?.id === profile.id ? "Selecionado" : "Selecionar"}
+                    </span>
                   </button>
                 ))}
-                {users.data.items.length === 0 && <p>Nenhum perfil encontrado.</p>}
+                {users.data.items.length === 0 && (
+                  <div className="operator-search-empty">
+                    <strong>Nenhum passageiro encontrado</strong>
+                    <p>Confira o username ou peça para o viajante entrar na plataforma e abrir o perfil uma vez.</p>
+                  </div>
+                )}
               </div>
             )}
+            </section>
 
+            <section className="operator-flow-section">
+            <div className="operator-section-heading">
+              <span>2</span>
+              <div>
+                <h2>O que deseja reservar?</h2>
+                <p>Escolha um ou mais serviços. Os itens ficam no rascunho até a confirmação.</p>
+              </div>
+            </div>
+            <div className="operator-service-shortcuts">
+              <ServiceShortcut to="/catalog/flights" icon="✈" title="Voo" description="Escolher rota e assento" />
+              <ServiceShortcut to="/catalog/hotels" icon="H" title="Hospedagem" description="Escolher hotel e quarto" />
+              <ServiceShortcut to="/catalog/transports" icon="C" title="Transporte" description="Escolher carro ou traslado" />
+            </div>
             <DraftSummary />
+            </section>
+
+            <section className="operator-flow-section operator-confirm-section">
+            <div className="operator-section-heading">
+              <span>3</span>
+              <div>
+                <h2>Revise e confirme</h2>
+                <p>A reserva será criada no perfil do passageiro selecionado.</p>
+              </div>
+            </div>
             <label>Método de pagamento
               <select value={paymentMethodRef} onChange={event => setPaymentMethodRef(event.target.value)}>
                 <option value="pm_test_success">Aprovar pagamento</option>
@@ -146,8 +191,11 @@ export function OperatorPage() {
             {createBooking.isError && <ErrorNotice message={friendlyError(createBooking.error)} />}
             <button className="button button-full" disabled={createBooking.isPending
               || !selectedPassenger || items.length === 0} onClick={() => createBooking.mutate()}>
-              {createBooking.isPending ? "Criando reserva..." : "Criar reserva"}
+              {createBooking.isPending ? "Criando reserva..."
+                : selectedPassenger ? `Confirmar reserva para ${shortName(selectedPassenger)}`
+                  : "Selecione um passageiro para continuar"}
             </button>
+            </section>
 
             <h2 className="operator-list-title">Reservas cadastradas</h2>
             {bookings.isLoading && <Loading />}
@@ -167,16 +215,21 @@ export function OperatorPage() {
               <>
                 <span className="passenger-avatar passenger-avatar-large">{initials(selectedPassenger)}</span>
                 <h2>{fullName(selectedPassenger)}</h2>
+                <strong className="profile-username">@{selectedPassenger.username}</strong>
                 <p>{selectedPassenger.email}</p>
                 <dl>
-                  <div><dt>ID do perfil</dt><dd>{selectedPassenger.id.slice(0, 8)}</dd></div>
+                  <div><dt>Passageiro</dt><dd>Selecionado</dd></div>
                   <div><dt>Itens no rascunho</dt><dd>{items.length}</dd></div>
                   <div><dt>Moeda</dt><dd>{currency ?? "—"}</dd></div>
                 </dl>
+                {needsAssistance(selectedPassenger) && (
+                  <div className="passenger-assistance">Este passageiro sinalizou necessidade de assistência.</div>
+                )}
               </>
             ) : <Empty title="Nenhum passageiro" description="Pesquise e selecione um usuário para iniciar." />}
           </aside>
         </div>
+        </>
       )}
 
       {tab === "catalog" && <section className="operator-main-card"><CatalogManagement embedded /></section>}
@@ -238,6 +291,44 @@ function DraftSummary() {
   );
 }
 
+function ReservationProgress({ passenger, itemCount }: { passenger: Profile | null; itemCount: number }) {
+  const ready = passenger !== null && itemCount > 0;
+  return (
+    <section className="operator-progress" aria-label="Etapas da reserva assistida">
+      <ProgressStep number="1" title="Passageiro"
+        detail={passenger ? `@${passenger.username}` : "Selecione um perfil"} complete={passenger !== null} />
+      <ProgressStep number="2" title="Serviços"
+        detail={itemCount > 0 ? `${itemCount} ${itemCount === 1 ? "item escolhido" : "itens escolhidos"}` : "Adicione voo, hotel ou carro"}
+        complete={itemCount > 0} />
+      <ProgressStep number="3" title="Confirmação"
+        detail={ready ? "Tudo pronto para revisar" : "Complete as etapas anteriores"} complete={false} active={ready} />
+    </section>
+  );
+}
+
+function ProgressStep({ number, title, detail, complete, active = false }: {
+  number: string; title: string; detail: string; complete: boolean; active?: boolean;
+}) {
+  return (
+    <article className={complete ? "complete" : active ? "active" : ""}>
+      <span>{complete ? "✓" : number}</span>
+      <div><strong>{title}</strong><small>{detail}</small></div>
+    </article>
+  );
+}
+
+function ServiceShortcut({ to, icon, title, description }: {
+  to: string; icon: string; title: string; description: string;
+}) {
+  return (
+    <Link className="operator-service-shortcut" to={to}>
+      <span>{icon}</span>
+      <div><strong>{title}</strong><small>{description}</small></div>
+      <b aria-hidden="true">→</b>
+    </Link>
+  );
+}
+
 function Stat({ value, label, tone }: { value: number; label: string; tone: string }) {
   return <article className={`operator-stat ${tone}`}><strong>{value}</strong><span>{label}</span></article>;
 }
@@ -247,11 +338,25 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
 }
 
 function initials(profile: Profile) {
-  return `${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`.toUpperCase() || "U";
+  return `${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`.toUpperCase()
+    || profile.username.slice(0, 2).toUpperCase();
 }
 
 function fullName(profile: Profile) {
   return `${profile.firstName} ${profile.lastName}`.trim() || profile.email;
+}
+
+function shortName(profile: Profile) {
+  return profile.firstName || `@${profile.username}`;
+}
+
+function needsAssistance(profile: Profile): boolean {
+  try {
+    const preferences = JSON.parse(profile.preferencesJson || "{}") as { needsAssistance?: unknown };
+    return preferences.needsAssistance === true;
+  } catch {
+    return false;
+  }
 }
 
 function attempt(signature: string): string {

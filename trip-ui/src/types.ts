@@ -145,6 +145,7 @@ export interface BookingObservability {
 export interface Profile {
   id: string;
   subject: string;
+  username: string;
   email: string;
   firstName: string;
   lastName: string;

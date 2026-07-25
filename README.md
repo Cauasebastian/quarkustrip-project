@@ -208,12 +208,20 @@ Principais rotas:
 - `/packages`: pacotes publicados pela companhia.
 - `/bookings/new`: revisão e envio do rascunho.
 - `/bookings/{id}`: polling e cancelamento da Saga.
-- `/profile`: perfil do usuário.
+- `/profile`: identificação do viajante e preferências simples de viagem.
 - `/admin`: cadastro de catálogo, somente para `ADMIN`.
 - `/operator`: painel da companhia para catálogo, pacotes e reservas em nome de passageiros.
 - `/operator/access`: entrada e cadastro orientado para contas de companhia.
 
-O fluxo do operador usa o `user-service`, portanto execute o profile `full`. O passageiro precisa ter salvo seu perfil ao menos uma vez para aparecer na pesquisa por nome ou e-mail. Uma reserva criada pelo operador pertence ao passageiro selecionado e também permanece visível para o operador que a cadastrou. Pacotes reutilizam itens do rascunho e a disponibilidade real continua sendo validada pela Saga no momento da reserva.
+O fluxo do operador usa o `user-service`, portanto execute o profile `full`. Ao entrar na plataforma, um viajante que ainda não possui perfil é sincronizado automaticamente com os dados básicos do Keycloak. A busca do operador aceita username, nome ou e-mail — por exemplo, `cauasebastian`. Uma reserva criada pelo operador pertence ao passageiro selecionado e também permanece visível para o operador que a cadastrou. Pacotes reutilizam itens do rascunho e a disponibilidade real continua sendo validada pela Saga no momento da reserva.
+
+A tela de reserva assistida orienta o operador em três etapas:
+
+1. pesquisar e selecionar o passageiro;
+2. adicionar voo, hospedagem ou transporte ao rascunho;
+3. revisar o pagamento e confirmar a reserva no perfil escolhido.
+
+O perfil do viajante mostra explicitamente o `@username` usado nessa busca. Preferências como idioma, assento, observações e necessidade de assistência são preenchidas por campos comuns; a interface não exige mais editar JSON manualmente.
 
 O serviço `keycloak-bootstrap` cria ou atualiza de forma idempotente a role e o usuário local `operator`, inclusive quando o volume do Keycloak já existe. Ele não remove usuários nem recria o realm.
 

@@ -285,8 +285,23 @@ message GetUserProfileRequest {
   string subject = 1;
   string id = 2;
 }
-message UpsertUserProfileRequest { string subject = 1; string email = 2; string first_name = 3; string last_name = 4; string preferences_json = 5; }
-message UserProfileView { string id = 1; string subject = 2; string email = 3; string first_name = 4; string last_name = 5; string preferences_json = 6; }
+message UpsertUserProfileRequest {
+  string subject = 1;
+  string email = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string preferences_json = 5;
+  string username = 6;
+}
+message UserProfileView {
+  string id = 1;
+  string subject = 2;
+  string email = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string preferences_json = 6;
+  string username = 7;
+}
 message GetUserProfileResponse { UserProfileView profile = 1; }
 message UpsertUserProfileResponse { UserProfileView profile = 1; }
 message SearchUserProfilesRequest { string query = 1; int32 page = 2; int32 size = 3; }

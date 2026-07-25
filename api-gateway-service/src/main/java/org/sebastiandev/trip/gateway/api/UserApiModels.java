@@ -11,6 +11,7 @@ public final class UserApiModels {
     public record Profile(
             String id,
             String subject,
+            String username,
             String email,
             String firstName,
             String lastName,

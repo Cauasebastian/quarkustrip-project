@@ -33,6 +33,7 @@ public class UserResource {
     @PUT
     public Uni<UserApiModels.Profile> put(@Valid UserApiModels.UpdateProfile body) {
         return users.upsert(UpsertUserProfileRequest.newBuilder().setSubject(jwt.getSubject())
+                        .setUsername(username(body.email()))
                         .setEmail(body.email()).setFirstName(body.firstName() == null ? "" : body.firstName())
                         .setLastName(body.lastName() == null ? "" : body.lastName())
                         .setPreferencesJson(body.preferencesJson() == null ? "{}" : body.preferencesJson()).build())
@@ -40,7 +41,16 @@ public class UserResource {
     }
 
     private UserApiModels.Profile profile(UserProfileView value) {
-        return new UserApiModels.Profile(value.getId(), value.getSubject(), value.getEmail(),
+        return new UserApiModels.Profile(value.getId(), value.getSubject(), value.getUsername(), value.getEmail(),
                 value.getFirstName(), value.getLastName(), value.getPreferencesJson());
+    }
+
+    private String username(String email) {
+        Object claim = jwt.getClaim("preferred_username");
+        if (claim != null && !claim.toString().isBlank()) {
+            return claim.toString();
+        }
+        int separator = email.indexOf('@');
+        return separator > 0 ? email.substring(0, separator) : email;
     }
 }

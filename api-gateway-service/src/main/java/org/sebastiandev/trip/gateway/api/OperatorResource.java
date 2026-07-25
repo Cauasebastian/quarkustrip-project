@@ -67,7 +67,7 @@ public class OperatorResource {
                         .setQuery(query.trim()).setPage(page).setSize(size).build())
                 .map(result -> new UserApiModels.ProfilePage(
                         result.getProfilesList().stream().map(value -> new UserApiModels.Profile(
-                                value.getId(), value.getSubject(), value.getEmail(),
+                                value.getId(), value.getSubject(), value.getUsername(), value.getEmail(),
                                 value.getFirstName(), value.getLastName(), value.getPreferencesJson())).toList(),
                         result.getPage(), result.getSize(), result.getTotalElements()));
     }

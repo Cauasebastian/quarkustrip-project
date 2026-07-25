@@ -68,6 +68,7 @@ public class UserProfileGrpcService implements UserProfileService {
                         value.subject = request.getSubject();
                         value.createdAt = now;
                     }
+                    value.username = username(request);
                     value.email = request.getEmail();
                     value.firstName = request.getFirstName();
                     value.lastName = request.getLastName();
@@ -86,7 +87,8 @@ public class UserProfileGrpcService implements UserProfileService {
         int page = Math.max(0, request.getPage());
         int size = request.getSize() == 0 ? 20 : Math.min(50, Math.max(1, request.getSize()));
         String term = "%" + request.getQuery().trim().toLowerCase(Locale.ROOT) + "%";
-        String filter = "lower(email) like ?1 or lower(firstName) like ?1 or lower(lastName) like ?1";
+        String filter = "lower(username) like ?1 or lower(email) like ?1 "
+                + "or lower(firstName) like ?1 or lower(lastName) like ?1";
         Uni<List<UserProfile>> values = profiles.find(filter, Sort.ascending("firstName"), term)
                 .page(Page.of(page, size)).list();
         Uni<Long> total = profiles.count(filter, term);
@@ -106,10 +108,20 @@ public class UserProfileGrpcService implements UserProfileService {
         return UserProfileView.newBuilder()
                 .setId(profile.id.toString())
                 .setSubject(profile.subject)
+                .setUsername(profile.username)
                 .setEmail(profile.email)
                 .setFirstName(profile.firstName == null ? "" : profile.firstName)
                 .setLastName(profile.lastName == null ? "" : profile.lastName)
                 .setPreferencesJson(profile.preferences)
                 .build();
+    }
+
+    private String username(UpsertUserProfileRequest request) {
+        String value = request.getUsername().trim();
+        if (!value.isBlank()) {
+            return value;
+        }
+        int separator = request.getEmail().indexOf('@');
+        return separator > 0 ? request.getEmail().substring(0, separator) : request.getEmail();
     }
 }
