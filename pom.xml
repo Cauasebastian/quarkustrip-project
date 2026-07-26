@@ -131,6 +131,8 @@
         <profile>
             <id>resilience</id>
             <modules>
+                <module>contracts</module>
+                <module>booking-service</module>
                 <module>resilience-tests</module>
             </modules>
         </profile>

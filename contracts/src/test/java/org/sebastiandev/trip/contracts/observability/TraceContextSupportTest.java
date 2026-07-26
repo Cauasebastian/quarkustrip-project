@@ -104,6 +104,11 @@ class TraceContextSupportTest {
         assertEquals(root.getSpanContext().getTraceId(), publishSpan.getTraceId());
         assertEquals(bookingId.toString(), waitSpan.getAttributes().get(AttributeKey.stringKey("booking.id")));
         assertEquals(2L, publishSpan.getAttributes().get(AttributeKey.longKey("outbox.attempt")));
+        assertEquals("kafka", publishSpan.getAttributes().get(AttributeKey.stringKey("messaging.system")));
+        assertEquals("publish",
+                publishSpan.getAttributes().get(AttributeKey.stringKey("messaging.operation.type")));
+        assertEquals(eventId.toString(),
+                publishSpan.getAttributes().get(AttributeKey.stringKey("messaging.message.id")));
         assertNotNull(waitSpan.getAttributes().get(AttributeKey.longKey("outbox.wait_ms")));
     }
 
@@ -117,5 +122,8 @@ class TraceContextSupportTest {
                 .filter(item -> item.getName().equals("inbox.process"))
                 .findFirst().orElseThrow();
         assertEquals(false, processed.getAttributes().get(AttributeKey.booleanKey("inbox.duplicate")));
+        assertEquals("kafka", processed.getAttributes().get(AttributeKey.stringKey("messaging.system")));
+        assertEquals("process",
+                processed.getAttributes().get(AttributeKey.stringKey("messaging.operation.type")));
     }
 }

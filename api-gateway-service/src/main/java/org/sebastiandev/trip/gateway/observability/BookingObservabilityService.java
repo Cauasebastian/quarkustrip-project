@@ -8,7 +8,12 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.sebastiandev.trip.contracts.grpc.BookingItemType;
 import org.sebastiandev.trip.contracts.grpc.BookingView;
 import org.sebastiandev.trip.contracts.grpc.GetBookingRequest;
 import org.sebastiandev.trip.gateway.api.BookingObservabilityModels;
@@ -28,16 +33,38 @@ public class BookingObservabilityService {
 
     private Uni<BookingObservabilityModels.Summary> summarize(BookingView value) {
         String traceId = value.getTraceId();
+        List<String> expectedServices = expectedServices(value);
         if (traceId == null || traceId.isBlank()) {
-            return Uni.createFrom().item(parser.unavailable(value.getId(), null, "TRACING_DISABLED"));
+            return Uni.createFrom().item(parser.unavailable(value.getId(), null, "TRACING_DISABLED",
+                    expectedServices));
         }
         return jaeger.trace(traceId).ifNoItem().after(Duration.ofSeconds(2)).fail()
                 .onFailure(WebApplicationException.class).recoverWithItem(JsonNodeFactory.instance.objectNode())
                 .chain(primary -> related(value).onFailure().recoverWithItem(JsonNodeFactory.instance.objectNode())
                         .map(related -> parser.parse(value.getId(), traceId, value.getStatus().name(),
-                                primary, related)))
+                                expectedServices, primary, related)))
                 .onFailure().recoverWithItem(() -> parser.unavailable(value.getId(), traceId,
-                        "JAEGER_UNAVAILABLE"));
+                        "JAEGER_UNAVAILABLE", expectedServices));
+    }
+
+    private List<String> expectedServices(BookingView value) {
+        Set<String> services = new LinkedHashSet<>();
+        services.add("api-gateway-service");
+        services.add("booking-service");
+        value.getItemsList().forEach(item -> {
+            if (item.getType() == BookingItemType.FLIGHT) services.add("flight-service");
+            if (item.getType() == BookingItemType.HOTEL) services.add("hotel-service");
+            if (item.getType() == BookingItemType.TRANSPORT) services.add("transport-service");
+        });
+        if (value.hasTotal() && value.getTotal().getAmountMinor() > 0) {
+            services.add("payment-service");
+        }
+        switch (value.getStatus()) {
+            case CONFIRMED, CANCELLED, FAILED, MANUAL_REVIEW -> services.add("notification-service");
+            default -> {
+            }
+        }
+        return new ArrayList<>(services);
     }
 
     private Uni<JsonNode> related(BookingView value) {

@@ -92,6 +92,7 @@ public final class TraceContextSupport {
 
         Span publish = startSpan("outbox.publish", SpanKind.INTERNAL, parent);
         setMessageAttributes(publish, eventId, bookingId, destination);
+        publish.setAttribute("messaging.operation.type", "publish");
         publish.setAttribute("outbox.attempt", attempt);
         return new OutboxPublishTrace(publish, parent.with(publish));
     }
@@ -99,12 +100,15 @@ public final class TraceContextSupport {
     public static Span startInboxSpan(UUID eventId, UUID bookingId, String destination) {
         Span span = startSpan("inbox.process", SpanKind.INTERNAL, Context.current());
         setMessageAttributes(span, eventId, bookingId, destination);
+        span.setAttribute("messaging.operation.type", "process");
         span.setAttribute("inbox.duplicate", false);
         return span;
     }
 
     private static void setMessageAttributes(Span span, UUID eventId, UUID bookingId, String destination) {
         span.setAttribute("event.id", eventId.toString());
+        span.setAttribute("messaging.message.id", eventId.toString());
+        span.setAttribute("messaging.system", "kafka");
         span.setAttribute("messaging.destination.name", destination);
         if (bookingId != null) span.setAttribute("booking.id", bookingId.toString());
     }

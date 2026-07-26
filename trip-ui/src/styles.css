@@ -175,6 +175,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
 .observability-summary > div { display: grid; gap: .25rem; padding: .85rem; border: 1px solid #dae7fa; border-radius: 10px; background: rgba(255,255,255,.82); }
 .observability-summary small, .trace-stage small, .communication-panel small { color: var(--muted); }
 .observability-summary strong { color: var(--navy); font: 800 1.15rem "Manrope"; }
+.trace-completeness { display: grid; gap: .2rem; margin-top: .8rem; padding: .75rem .85rem; border: 1px solid; border-radius: 10px; font-size: .82rem; }
+.trace-completeness strong { color: var(--navy); }
+.trace-completeness span { color: var(--muted); }
+.trace-complete { border-color: #a9ead5; background: #ecfdf7; }
+.trace-partial { border-color: #f4cf80; background: #fff8e8; }
+.trace-services { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .7rem; }
+.trace-service { padding: .3rem .55rem; border: 1px solid; border-radius: 99px; font-size: .7rem; font-weight: 800; }
+.trace-service.observed { color: #08745a; border-color: #a9ead5; background: #ecfdf7; }
+.trace-service.missing { color: #8a5700; border-color: #f4cf80; background: #fff8e8; }
 .protocol-list { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .9rem; }
 .protocol { display: inline-flex; align-items: center; width: fit-content; padding: .28rem .58rem; border-radius: 99px; font-size: .7rem; font-weight: 800; letter-spacing: .04em; }
 .protocol-rest { color: #075985; background: #e0f2fe; }

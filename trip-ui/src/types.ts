@@ -136,6 +136,10 @@ export interface BookingObservability {
   bookingId: string;
   primaryTraceId: string | null;
   traceIds: string[];
+  complete: boolean;
+  expectedSagaServices: string[];
+  observedServices: string[];
+  missingServices: string[];
   totalDurationMs: number;
   stages: ObservabilityStage[];
   communications: ServiceCommunication[];

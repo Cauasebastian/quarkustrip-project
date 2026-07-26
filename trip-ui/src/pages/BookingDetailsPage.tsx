@@ -127,8 +127,19 @@ function ObservabilityPanel({ trace, loading, error, expanded, onToggle }: Obser
     {trace?.available && <>
       <div className="observability-summary">
         <div><small>Tempo observado</small><strong>{formatDuration(trace.totalDurationMs)}</strong></div>
-        <div><small>Serviços conectados</small><strong>{uniqueServices(trace).size}</strong></div>
+        <div><small>Serviços conectados</small><strong>{trace.observedServices.length}</strong></div>
         <div><small>Traces relacionados</small><strong>{trace.traceIds.length}</strong></div>
+      </div>
+      <div className={trace.complete ? "trace-completeness trace-complete" : "trace-completeness trace-partial"}>
+        <strong>{trace.complete ? "Trace completo" : "Trace parcial"}</strong>
+        <span>{trace.complete
+          ? "Todos os serviços esperados da Saga apareceram no Jaeger."
+          : `Serviços ainda não observados: ${trace.missingServices.join(", ") || "nenhum identificado"}.`}</span>
+      </div>
+      <div className="trace-services" aria-label="Serviços esperados no trace">
+        {trace.expectedSagaServices.map(service =>
+          <span className={trace.observedServices.includes(service) ? "trace-service observed" : "trace-service missing"}
+            key={service}>{service}</span>)}
       </div>
       <div className="protocol-list" aria-label="Protocolos observados">
         {[...new Set(trace.communications.map(item => item.protocol))].map(protocol =>
@@ -176,10 +187,6 @@ function SignalList({ signals }: { signals: ObservabilitySignals }) {
     {values.map(([name, value, alert]) => <span className={alert ? "signal signal-alert" : "signal"} key={name}><small>{name}</small><strong>{value}</strong></span>)}
     {signals.notificationStatus && <span className="signal"><small>Notificação</small><strong>{signals.notificationStatus}</strong></span>}
   </div>;
-}
-
-function uniqueServices(trace: BookingObservability): Set<string> {
-  return new Set(trace.communications.flatMap(item => [item.source, item.target]).filter(Boolean));
 }
 
 function label(value: string): string {

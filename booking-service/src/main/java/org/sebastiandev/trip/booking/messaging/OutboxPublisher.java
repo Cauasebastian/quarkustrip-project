@@ -23,7 +23,7 @@ public class OutboxPublisher {
     @Inject OutboxRepository repository;
     @Inject @Channel("outbox") MutinyEmitter<String> emitter;
 
-    @Scheduled(every = "${trip.outbox.publish-interval:1s}",
+    @Scheduled(every = "${trip.outbox.publish-interval:500ms}",
             delayed = "${trip.outbox.initial-delay:30s}",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @WithSession

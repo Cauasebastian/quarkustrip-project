@@ -19,22 +19,38 @@ import org.sebastiandev.trip.gateway.api.BookingObservabilityModels;
 @ApplicationScoped
 public class JaegerTraceParser {
     public BookingObservabilityModels.Summary parse(String bookingId, String primaryTraceId,
-                                                     String currentStatus, JsonNode... responses) {
+                                                     String currentStatus, List<String> expectedServices,
+                                                     JsonNode... responses) {
         List<SpanData> spans = readSpans(responses);
-        if (spans.isEmpty()) return unavailable(bookingId, primaryTraceId, "TRACE_NOT_FOUND");
+        if (spans.isEmpty()) {
+            return unavailable(bookingId, primaryTraceId, "TRACE_NOT_FOUND", expectedServices);
+        }
 
         spans.sort(Comparator.comparingLong(SpanData::startMicros));
         long started = spans.getFirst().startMicros();
         long finished = spans.stream().mapToLong(SpanData::endMicros).max().orElse(started);
         List<String> traceIds = spans.stream().map(SpanData::traceId).distinct().toList();
+        List<String> observedServices = spans.stream().map(SpanData::service)
+                .filter(service -> service != null && !service.isBlank() && !"unknown".equals(service))
+                .distinct().sorted().toList();
+        List<String> expected = expectedServices == null ? List.of() : List.copyOf(expectedServices);
+        List<String> missing = expected.stream().filter(service -> !observedServices.contains(service)).toList();
         return new BookingObservabilityModels.Summary(true, null, bookingId, primaryTraceId, traceIds,
+                missing.isEmpty(), expected, observedServices, missing,
                 microsToMillis(finished - started), stages(spans, currentStatus, started, finished),
                 communications(spans), signals(spans));
     }
 
     public BookingObservabilityModels.Summary unavailable(String bookingId, String traceId, String reason) {
+        return unavailable(bookingId, traceId, reason, List.of());
+    }
+
+    public BookingObservabilityModels.Summary unavailable(String bookingId, String traceId, String reason,
+                                                           List<String> expectedServices) {
+        List<String> expected = expectedServices == null ? List.of() : List.copyOf(expectedServices);
         return new BookingObservabilityModels.Summary(false, reason, bookingId, traceId,
-                traceId == null || traceId.isBlank() ? List.of() : List.of(traceId), 0,
+                traceId == null || traceId.isBlank() ? List.of() : List.of(traceId),
+                false, expected, List.of(), expected, 0,
                 List.of(), List.of(), new BookingObservabilityModels.Signals(0, 0, 0, 0,
                 false, false, null));
     }

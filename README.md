@@ -125,20 +125,32 @@ Endereços locais:
 Os serviços mantêm a instrumentação distribuída compilada, mas usam `quarkus.otel.sdk.disabled=true` no profile enxuto e não geram lotes OTLP enquanto Jaeger não estiver selecionado. O override de observabilidade reativa o SDK; inicie-o antes de gerar o fluxo que deseja inspecionar. Para iniciar `core` com traces:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile core --profile observability up -d --build
+.\scripts\start-platform.ps1 -Profile core -Observability -Build
+```
+
+Para observar o fluxo completo com Hotel, Transporte, User e Notification:
+
+```powershell
+.\scripts\start-platform.ps1 -Profile full -Observability -Build
 ```
 
 No runtime nativo, inclua os três arquivos:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.native.yml -f docker-compose.observability.yml --profile core --profile observability up -d --build
+.\scripts\start-platform.ps1 -Profile core -Observability -Native -Build
 ```
 
-A stack local mantém até 10.000 traces em memória e limita o Jaeger a 384 MiB; os dados são descartados quando o contêiner reinicia.
+O script aguarda os health checks e valida se todos os serviços ativos estão com o mesmo exporter, sampler e instrumentação. Para verificar uma stack já iniciada:
+
+```powershell
+.\scripts\check-observability.ps1 -Profile full
+```
+
+A stack local mantém até 10.000 traces em memória e limita o Jaeger a 384 MiB; os dados são descartados quando o contêiner reinicia. O profile de observabilidade exporta lotes a cada segundo e omite spans automáticos do SQL reativo, mantendo o foco nas conexões REST, gRPC, Kafka e nas operações da Saga.
 
 Na interface do Jaeger:
 
-- `Search` mostra traces completos de REST, gRPC, outbox, Kafka, inbox e SQL.
+- `Search` mostra traces completos de REST, gRPC, outbox, Kafka, inbox e operações de domínio.
 - `Dependencies` calcula o grafo entre serviços a partir dos traces mantidos em memória.
 - Os atributos `booking.id`, `event.id`, `saga.state`, `payment.operation` e `compensation.reason` permitem filtrar uma execução específica.
 
@@ -286,6 +298,7 @@ Com o profile `observability` ativo, a página `/bookings/{id}` consulta o Jaege
 
 - tempo total observado e duração das etapas da Saga;
 - conexões entre os serviços com badges `REST`, `gRPC` e `Kafka`;
+- serviços esperados, observados e ausentes, indicando se o trace está completo;
 - retries, duplicações, DLQ, spans com falha, compensação e reembolso;
 - atalhos para o trace principal, traces relacionados e o grafo global de dependências.
 
@@ -313,7 +326,7 @@ Os valores padrão da Saga podem ser ajustados sem recompilar:
 | `trip.saga.total-timeout` | `5m` | prazo total da Saga |
 | `trip.saga.hold-retention` | `15m` | retenção dos recursos |
 | `trip.saga.timeout-check-interval` | `5s` | frequência do monitor de timeout |
-| `trip.outbox.publish-interval` | `1s` | frequência de publicação da outbox |
+| `trip.outbox.publish-interval` | `500ms` | frequência de publicação da outbox |
 
 ## Testes de resiliência
 

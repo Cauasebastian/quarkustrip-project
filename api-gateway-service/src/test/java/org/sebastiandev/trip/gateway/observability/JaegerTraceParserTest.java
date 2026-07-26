@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class JaegerTraceParserTest {
@@ -41,9 +42,12 @@ class JaegerTraceParserTest {
                 """);
 
         var summary = parser.parse("booking-1", "c7e9f5ee2dbd6b6bc7107b4c1d8e9b55",
-                "PAYMENT_PENDING", response);
+                "PAYMENT_PENDING", List.of("api-gateway-service", "booking-service", "flight-service"), response);
 
         assertTrue(summary.available());
+        assertTrue(summary.complete());
+        assertEquals(List.of("api-gateway-service", "booking-service", "flight-service"),
+                summary.expectedSagaServices());
         assertEquals(1_101, summary.totalDurationMs());
         assertEquals(2, summary.stages().size());
         assertTrue(summary.communications().stream().anyMatch(value -> value.protocol().equals("REST")));
@@ -55,8 +59,46 @@ class JaegerTraceParserTest {
     }
 
     @Test
+    void combinesRelatedTracesAndReportsMissingSagaServices() throws Exception {
+        var primary = mapper.readTree("""
+                {"data":[{"traceID":"trace-primary","processes":{
+                  "p1":{"serviceName":"api-gateway-service"},
+                  "p2":{"serviceName":"booking-service"},
+                  "p3":{"serviceName":"flight-service"},
+                  "p4":{"serviceName":"payment-service"}},
+                  "spans":[
+                    {"traceID":"trace-primary","spanID":"1","operationName":"POST /api/v1/bookings","processID":"p1","startTime":1000000,"duration":1000,"tags":[],"references":[]},
+                    {"traceID":"trace-primary","spanID":"2","operationName":"saga.transition","processID":"p2","startTime":1100000,"duration":1000,"tags":[{"key":"saga.state","value":"CONFIRMING"}],"references":[]},
+                    {"traceID":"trace-primary","spanID":"3","operationName":"reservation.confirm","processID":"p3","startTime":1200000,"duration":1000,"tags":[],"references":[]},
+                    {"traceID":"trace-primary","spanID":"4","operationName":"payment.charge","processID":"p4","startTime":1300000,"duration":1000,"tags":[],"references":[]}
+                  ]}]}
+                """);
+        var related = mapper.readTree("""
+                {"data":[{"traceID":"trace-cancel","processes":{
+                  "p1":{"serviceName":"booking-service"},
+                  "p2":{"serviceName":"notification-service"}},
+                  "spans":[
+                    {"traceID":"trace-cancel","spanID":"5","operationName":"saga.compensate","processID":"p1","startTime":1400000,"duration":1000,"tags":[],"references":[]},
+                    {"traceID":"trace-cancel","spanID":"6","operationName":"notification.send","processID":"p2","startTime":1500000,"duration":1000,"tags":[{"key":"notification.outcome","value":"SENT"}],"references":[]}
+                  ]}]}
+                """);
+
+        var summary = parser.parse("booking-1", "trace-primary", "COMPENSATING",
+                List.of("api-gateway-service", "booking-service", "flight-service", "hotel-service",
+                        "transport-service", "payment-service"),
+                primary, related);
+
+        assertFalse(summary.complete());
+        assertEquals(List.of("hotel-service", "transport-service"), summary.missingServices());
+        assertTrue(summary.observedServices().contains("notification-service"));
+        assertEquals(List.of("trace-primary", "trace-cancel"), summary.traceIds());
+        assertTrue(summary.signals().compensationStarted());
+        assertEquals("SENT", summary.signals().notificationStatus());
+    }
+
+    @Test
     void returnsControlledUnavailableSummaryWithoutTraceData() {
-        var summary = parser.parse("booking-1", "trace-1", "CONFIRMED");
+        var summary = parser.parse("booking-1", "trace-1", "CONFIRMED", List.of());
 
         assertFalse(summary.available());
         assertEquals("TRACE_NOT_FOUND", summary.unavailableReason());

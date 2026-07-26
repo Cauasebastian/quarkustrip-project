@@ -129,12 +129,7 @@ public class BookingApplicationService {
     @WithSession
     public Uni<Booking> get(UUID id, UUID requesterId, boolean admin) {
         return repository.findById(id).onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
-                .invoke(booking -> {
-                    if (!admin && !booking.userId.equals(requesterId)
-                            && !booking.createdByUserId.equals(requesterId)) {
-                        throw new SecurityException("booking belongs to another user");
-                    }
-                });
+                .invoke(booking -> authorize(booking, requesterId, admin));
     }
 
     @WithSession
@@ -166,7 +161,9 @@ public class BookingApplicationService {
     }
 
     public Uni<Booking> cancel(UUID id, UUID requesterId, boolean admin, String reason) {
-        return Panache.withTransaction(() -> get(id, requesterId, admin).chain(booking -> {
+        return Panache.withTransaction(() -> lockBooking(id, null).chain(booking -> {
+            if (booking == null) throw new IllegalArgumentException("booking not found");
+            authorize(booking, requesterId, admin);
             if (booking.status == BookingStatus.CANCELLED) return Uni.createFrom().item(booking);
             if (booking.status == BookingStatus.COMPENSATING) return Uni.createFrom().item(booking);
             if (booking.status == BookingStatus.FAILED || booking.status == BookingStatus.MANUAL_REVIEW) {
@@ -411,25 +408,28 @@ public class BookingApplicationService {
     public Uni<Void> processDlq(EventEnvelope event, String originalTopic, String reason) {
         String id = event.eventId() + ":" + originalTopic;
         String failure = dlqFailure(originalTopic, reason);
-        return Panache.withTransaction(() -> dlqEvents.findById(id).chain(existing -> {
+        return Panache.withTransaction(() -> lockBooking(event.correlationId(), event.eventId())
+                .chain(booking -> dlqEvents.findById(id).chain(existing -> {
             if (existing != null) return Uni.createFrom().voidItem();
-            return repository.findById(event.correlationId()).chain(booking -> {
-                if (booking == null) return markDlq(id, event, originalTopic);
+            return Uni.createFrom().item(booking).chain(lockedBooking -> {
+                if (lockedBooking == null) return markDlq(id, event, originalTopic);
                 Uni<Void> action;
                 if (originalTopic.startsWith("trip.notification.")) {
                     action = Uni.createFrom().voidItem();
-                } else if (booking.status == BookingStatus.CONFIRMED || booking.status == BookingStatus.CANCELLED
-                        || booking.status == BookingStatus.FAILED || booking.status == BookingStatus.MANUAL_REVIEW) {
+                } else if (lockedBooking.status == BookingStatus.CONFIRMED
+                        || lockedBooking.status == BookingStatus.CANCELLED
+                        || lockedBooking.status == BookingStatus.FAILED
+                        || lockedBooking.status == BookingStatus.MANUAL_REVIEW) {
                     action = Uni.createFrom().voidItem();
-                } else if (booking.status == BookingStatus.COMPENSATING || originalTopic.contains("cancel")
+                } else if (lockedBooking.status == BookingStatus.COMPENSATING || originalTopic.contains("cancel")
                         || originalTopic.contains("refund")) {
-                    action = manualReview(booking, failure, event.eventId());
+                    action = manualReview(lockedBooking, failure, event.eventId());
                 } else {
-                    action = startCompensation(booking, failure, event.eventId());
+                    action = startCompensation(lockedBooking, failure, event.eventId());
                 }
                 return action.chain(() -> markDlq(id, event, originalTopic));
             });
-        }));
+        })));
     }
 
     private String dlqFailure(String originalTopic, String reason) {
@@ -450,14 +450,16 @@ public class BookingApplicationService {
                               BiFunction<Booking, EventEnvelope, Uni<Void>> action) {
         Span span = TraceContextSupport.startInboxSpan(event.eventId(), bookingId, event.type());
         return TraceContextSupport.inContext(span, () -> Panache.withTransaction(() ->
-                inbox.findById(event.eventId()).chain(existing -> {
+                lockBooking(bookingId, event.eventId())
+                        .onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
+                        .chain(booking -> inbox.findById(event.eventId()).chain(existing -> {
                     if (existing != null) {
                         span.setAttribute("inbox.duplicate", true);
                         return Uni.createFrom().voidItem();
                     }
-                    return repository.findById(bookingId)
-                            .onItem().ifNull().failWith(() -> new IllegalArgumentException("booking not found"))
-                            .chain(booking -> TraceContextSupport.inContext(span, () -> action.apply(booking, event)))
+                    booking.updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+                    span.setAttribute("saga.state", booking.status.name());
+                    return TraceContextSupport.inContext(span, () -> action.apply(booking, event))
                             .chain(() -> {
                                 InboxEvent processed = new InboxEvent();
                                 processed.eventId = event.eventId();
@@ -465,10 +467,32 @@ public class BookingApplicationService {
                                 processed.processedAt = OffsetDateTime.now(ZoneOffset.UTC);
                                 return inbox.persist(processed).replaceWithVoid();
                             });
-                }))).onItemOrFailure().invoke((ignored, failure) -> {
+                })))).onItemOrFailure().invoke((ignored, failure) -> {
                     if (failure != null) TraceContextSupport.fail(span, failure);
                     span.end();
                 });
+    }
+
+    Uni<Booking> lockBooking(UUID bookingId, UUID eventId) {
+        long startedAt = System.nanoTime();
+        Span span = TraceContextSupport.startSpan("saga.lock", SpanKind.INTERNAL, Context.current());
+        span.setAttribute("booking.id", bookingId.toString());
+        if (eventId != null) span.setAttribute("event.id", eventId.toString());
+        return TraceContextSupport.inContext(span, () -> repository.findByIdForUpdate(bookingId))
+                .onItemOrFailure().invoke((booking, failure) -> {
+                    span.setAttribute("saga.lock.wait_ms",
+                            Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000L));
+                    if (booking != null) span.setAttribute("saga.state", booking.status.name());
+                    if (failure != null) TraceContextSupport.fail(span, failure);
+                    span.end();
+                });
+    }
+
+    private void authorize(Booking booking, UUID requesterId, boolean admin) {
+        if (!admin && !booking.userId.equals(requesterId)
+                && !booking.createdByUserId.equals(requesterId)) {
+            throw new SecurityException("booking belongs to another user");
+        }
     }
 
     public Uni<Void> manualReview(Booking booking, String reason, UUID causationId) {

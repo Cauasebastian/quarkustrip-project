@@ -20,7 +20,9 @@ const booking = {
 const trace = {
   available: true, unavailableReason: null, bookingId: "booking-123",
   primaryTraceId: "0123456789abcdef0123456789abcdef",
-  traceIds: ["0123456789abcdef0123456789abcdef"], totalDurationMs: 2300,
+  traceIds: ["0123456789abcdef0123456789abcdef"], complete: true,
+  expectedSagaServices: ["api-gateway-service", "booking-service"],
+  observedServices: ["api-gateway-service", "booking-service"], missingServices: [], totalDurationMs: 2300,
   stages: [{ status: "RESERVING", startedAt: "2026-07-20T10:00:00Z", finishedAt: "2026-07-20T10:00:01Z", durationMs: 1000, active: false }],
   communications: [{ source: "api-gateway-service", target: "booking-service", protocol: "GRPC", destination: "BookingCommandService/CreateBooking", count: 1, totalDurationMs: 18, errorCount: 0 }],
   signals: { retryCount: 0, duplicateCount: 0, dlqCount: 0, failedSpanCount: 0, compensationStarted: false, refundRequested: false, notificationStatus: "SENT" }
@@ -46,10 +48,23 @@ describe("Booking observability", () => {
     expect(screen.getByRole("link", { name: "Abrir trace no Jaeger" })).toHaveAttribute("href", expect.stringContaining(trace.primaryTraceId));
     expect(screen.getByText("gRPC")).toBeInTheDocument();
     expect(screen.getByText("2.3 s")).toBeInTheDocument();
+    expect(screen.getByText("Trace completo")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Ver comunicação entre serviços" }));
-    expect(screen.getByText("api-gateway-service")).toBeInTheDocument();
+    expect(screen.getAllByText("api-gateway-service")).toHaveLength(2);
     expect(screen.getByText("BookingCommandService/CreateBooking")).toBeInTheDocument();
+  });
+
+  it("highlights services missing from a partial trace", async () => {
+    api.getBookingObservability.mockResolvedValue({
+      ...trace,
+      complete: false,
+      expectedSagaServices: [...trace.expectedSagaServices, "payment-service"],
+      missingServices: ["payment-service"]
+    });
+    renderPage();
+    expect(await screen.findByText("Trace parcial")).toBeInTheDocument();
+    expect(screen.getAllByText(/payment-service/)).toHaveLength(2);
   });
 
   it("keeps the reservation usable when Jaeger has no trace", async () => {
