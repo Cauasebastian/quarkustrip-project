@@ -270,6 +270,14 @@ Para medir tempo até `healthy` e memória após 60 segundos de estabilização:
 
 Os relatórios JSON e CSV são gravados em `target/performance` e não entram no Git. O medidor recria contêineres, mas não remove volumes.
 
+Para medir a Saga aquecida com três reservas descartadas e 30 amostras válidas:
+
+```powershell
+.\scripts\measure-saga.ps1 -Warmup 3 -Samples 30 -PollIntervalMs 200
+```
+
+O medidor cria um catálogo isolado, não apaga dados existentes e valida automaticamente mediana de até 3 segundos, P95 de até 5 segundos e espera P95 da outbox de até 250 ms. Execute-o com o profile `full + observability` saudável.
+
 Também é possível validar apenas o frontend:
 
 ```bash
@@ -285,6 +293,7 @@ Os testes Playwright exigem a stack completa em execução.
 
 - `bookingId` é a chave Kafka dos eventos da Saga.
 - Domínio e outbox são gravados na mesma transação; inbox com chave única elimina efeitos duplicados.
+- Booking, Flight, Hotel, Transport e Payment usam `LISTEN/NOTIFY` para acordar a outbox após o commit; o polling de 500 ms permanece como fallback.
 - Assentos usam lock pessimista e índice único parcial.
 - Quartos e transportes usam intervalos `[início, fim)` e exclusion constraints PostgreSQL.
 - Valores monetários usam `amountMinor`; referências de pagamento são tokenizadas.
@@ -310,7 +319,7 @@ GET /api/v1/bookings/{bookingId}/observability
 
 O `BookingView` expõe somente o `traceId` de 32 caracteres hexadecimais. `traceparent` e `tracestate` permanecem internos. Quando o Jaeger estiver desligado, o circuito estiver aberto ou o trace tiver expirado, o endpoint responde `200` com `available=false`; a consulta e o cancelamento da reserva continuam funcionando normalmente.
 
-Durante uma Saga ativa, a UI atualiza a reserva a cada dois segundos e o resumo do Jaeger a cada cinco segundos. Os traces ficam apenas na memória do Jaeger local e desaparecem quando o contêiner reinicia. Para abrir as ferramentas diretamente:
+Durante uma Saga ativa, a UI atualiza a reserva a cada 500 ms e o resumo do Jaeger a cada cinco segundos. Os traces ficam apenas na memória do Jaeger local e desaparecem quando o contêiner reinicia. Para abrir as ferramentas diretamente:
 
 - trace: `http://localhost:16686/trace/{traceId}`;
 - busca: `http://localhost:16686/search`;
@@ -326,7 +335,11 @@ Os valores padrão da Saga podem ser ajustados sem recompilar:
 | `trip.saga.total-timeout` | `5m` | prazo total da Saga |
 | `trip.saga.hold-retention` | `15m` | retenção dos recursos |
 | `trip.saga.timeout-check-interval` | `5s` | frequência do monitor de timeout |
-| `trip.outbox.publish-interval` | `500ms` | frequência de publicação da outbox |
+| `trip.outbox.publish-interval` | `500ms` | fallback quando a notificação não for recebida |
+| `trip.outbox.notify-enabled` | `true` | habilita o listener PostgreSQL da outbox |
+| `trip.outbox.notification-channel` | `trip_outbox` | canal usado pelo `LISTEN/NOTIFY` |
+| `trip.outbox.batch-size` | `50` | máximo de eventos lidos por lote |
+| `trip.outbox.max-concurrency` | `8` | grupos independentes publicados em paralelo |
 
 ## Testes de resiliência
 

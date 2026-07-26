@@ -18,7 +18,7 @@ export function BookingDetailsPage() {
     queryKey: ["booking", id],
     queryFn: () => tripApi.getBooking(id),
     enabled: Boolean(id),
-    refetchInterval: query => shouldPollBooking(query.state.data?.status, pollingStartedAt.current) ? 2_000 : false
+    refetchInterval: query => shouldPollBooking(query.state.data?.status, pollingStartedAt.current) ? 500 : false
   });
   const observability = useQuery({
     queryKey: ["booking-observability", id],

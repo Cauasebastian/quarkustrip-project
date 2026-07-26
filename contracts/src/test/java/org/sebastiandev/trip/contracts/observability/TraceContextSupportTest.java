@@ -92,7 +92,9 @@ class TraceContextSupportTest {
 
         TraceContextSupport.OutboxPublishTrace publish = TraceContextSupport.beginOutboxPublish(eventId,
                 bookingId, "trip.flight.reserve-requested.v1", 2,
-                Instant.now().minus(50, ChronoUnit.MILLIS), snapshot);
+                Instant.now().minus(50, ChronoUnit.MILLIS), snapshot)
+                .dispatcher("notify", 12, 3, 3);
+        publish.batchResult("SUCCEEDED", 12, 0);
         publish.finish(null);
         root.end();
 
@@ -110,6 +112,9 @@ class TraceContextSupportTest {
         assertEquals(eventId.toString(),
                 publishSpan.getAttributes().get(AttributeKey.stringKey("messaging.message.id")));
         assertNotNull(waitSpan.getAttributes().get(AttributeKey.longKey("outbox.wait_ms")));
+        assertEquals("notify", publishSpan.getAttributes().get(AttributeKey.stringKey("outbox.trigger")));
+        assertEquals(12L, publishSpan.getAttributes().get(AttributeKey.longKey("outbox.batch.size")));
+        assertEquals("SUCCEEDED", publishSpan.getAttributes().get(AttributeKey.stringKey("outbox.batch.result")));
     }
 
     @Test

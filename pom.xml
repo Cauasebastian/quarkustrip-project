@@ -36,6 +36,11 @@
                 <artifactId>contracts</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>outbox-runtime</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -106,6 +111,7 @@
             </activation>
             <modules>
                 <module>contracts</module>
+                <module>outbox-runtime</module>
                 <module>api-gateway-service</module>
                 <module>booking-service</module>
                 <module>flight-service</module>
@@ -121,6 +127,7 @@
             <id>native</id>
             <modules>
                 <module>contracts</module>
+                <module>outbox-runtime</module>
                 <module>api-gateway-service</module>
                 <module>booking-service</module>
                 <module>flight-service</module>
@@ -132,6 +139,7 @@
             <id>resilience</id>
             <modules>
                 <module>contracts</module>
+                <module>outbox-runtime</module>
                 <module>booking-service</module>
                 <module>resilience-tests</module>
             </modules>

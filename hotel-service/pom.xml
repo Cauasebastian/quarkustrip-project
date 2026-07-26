@@ -5,6 +5,7 @@
     <artifactId>hotel-service</artifactId>
     <dependencies>
         <dependency><groupId>${project.groupId}</groupId><artifactId>contracts</artifactId></dependency>
+        <dependency><groupId>${project.groupId}</groupId><artifactId>outbox-runtime</artifactId></dependency>
         <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-grpc</artifactId></dependency>
         <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-hibernate-reactive-panache</artifactId></dependency>
         <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-reactive-pg-client</artifactId></dependency>

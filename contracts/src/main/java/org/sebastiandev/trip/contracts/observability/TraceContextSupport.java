@@ -152,6 +152,20 @@ public final class TraceContextSupport {
     }
 
     public record OutboxPublishTrace(Span span, Context context) {
+        public OutboxPublishTrace dispatcher(String trigger, int batchSize, int groupCount, int inFlight) {
+            span.setAttribute("outbox.trigger", trigger);
+            span.setAttribute("outbox.batch.size", batchSize);
+            span.setAttribute("outbox.group.count", groupCount);
+            span.setAttribute("outbox.in_flight", inFlight);
+            return this;
+        }
+
+        public void batchResult(String result, long successCount, long failureCount) {
+            span.setAttribute("outbox.batch.result", result);
+            span.setAttribute("outbox.batch.success_count", successCount);
+            span.setAttribute("outbox.batch.failure_count", failureCount);
+        }
+
         public void finish(Throwable failure) {
             if (failure != null) TraceContextSupport.fail(span, failure);
             span.end();

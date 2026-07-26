@@ -101,7 +101,7 @@ services:
       interval: 10s
       start_interval: 1s
       start_period: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 30
 
   keycloak:

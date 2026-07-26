@@ -1,64 +1,56 @@
 package org.sebastiandev.trip.booking.messaging;
 
-import io.quarkus.hibernate.reactive.panache.Panache;
-import io.quarkus.hibernate.reactive.panache.common.WithSession;
+import io.quarkus.runtime.ShutdownEvent;
+import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
-import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.MutinyEmitter;
-import io.smallrye.reactive.messaging.TracingMetadata;
-import io.smallrye.reactive.messaging.kafka.KafkaRecord;
+import io.vertx.core.Vertx;
+import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.List;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
-import org.eclipse.microprofile.reactive.messaging.Message;
-import org.sebastiandev.trip.booking.repository.OutboxRepository;
-import org.sebastiandev.trip.contracts.observability.TraceContextSnapshot;
-import org.sebastiandev.trip.contracts.observability.TraceContextSupport;
+import org.jboss.logging.Logger;
+import org.sebastiandev.trip.outbox.OutboxFallbackStartupGuard;
+import org.sebastiandev.trip.outbox.ReactiveOutboxDispatcher;
 
 @ApplicationScoped
 public class OutboxPublisher {
-    @Inject OutboxRepository repository;
+    private static final Logger LOG = Logger.getLogger(OutboxPublisher.class);
+
+    @Inject PgPool pool;
+    @Inject Vertx vertx;
     @Inject @Channel("outbox") MutinyEmitter<String> emitter;
+    @ConfigProperty(name = "trip.outbox.notify-enabled", defaultValue = "true") boolean notifyEnabled;
+    @ConfigProperty(name = "trip.outbox.notification-channel", defaultValue = "trip_outbox") String channel;
+    @ConfigProperty(name = "trip.outbox.batch-size", defaultValue = "50") int batchSize;
+    @ConfigProperty(name = "trip.outbox.max-concurrency", defaultValue = "8") int maxConcurrency;
+
+    private volatile ReactiveOutboxDispatcher dispatcher;
+
+    void onStart(@Observes StartupEvent ignored) {
+        dispatcher = new ReactiveOutboxDispatcher(pool, emitter, vertx, LOG, "booking-service", channel,
+                batchSize, maxConcurrency, notifyEnabled);
+        dispatcher.start();
+        OutboxFallbackStartupGuard.ready();
+    }
+
+    void onStop(@Observes ShutdownEvent ignored) {
+        OutboxFallbackStartupGuard.notReady();
+        ReactiveOutboxDispatcher current = dispatcher;
+        if (current != null) {
+            current.stop();
+        }
+    }
 
     @Scheduled(every = "${trip.outbox.publish-interval:500ms}",
-            delayed = "${trip.outbox.initial-delay:30s}",
-            concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
-    @WithSession
-    Uni<Void> publish() {
-        return repository.find("publishedAt is null order by createdAt").page(0, 50).list().chain(this::publishBatch);
-    }
-
-    private Uni<Void> publishBatch(List<OutboxEvent> events) {
-        Uni<Void> chain = Uni.createFrom().voidItem();
-        for (OutboxEvent event : events) chain = chain.chain(() -> publishOne(event));
-        return chain;
-    }
-
-    private Uni<Void> publishOne(OutboxEvent event) {
-        TraceContextSupport.OutboxPublishTrace trace = TraceContextSupport.beginOutboxPublish(event.id,
-                event.aggregateId, event.topic, event.attempts + 1, event.createdAt.toInstant(),
-                new TraceContextSnapshot(event.traceParent, event.traceState));
-        Message<String> message = KafkaRecord.of(event.topic, event.aggregateId.toString(), event.payload)
-                .withHeader(TraceContextSupport.OUTBOX_ATTEMPT, Integer.toString(event.attempts + 1))
-                .addMetadata(TracingMetadata.withCurrent(trace.context()));
-        return emitter.sendMessage(message)
-                .onItemOrFailure().invoke((ignored, failure) -> trace.finish(failure))
-                .chain(() -> markPublished(event))
-                .onFailure().call(() -> incrementAttempts(event));
-    }
-
-    private Uni<Void> markPublished(OutboxEvent event) {
-        return Panache.withTransaction(() -> repository.findById(event.id).onItem().ifNotNull().invoke(stored -> {
-            stored.publishedAt = OffsetDateTime.now(ZoneOffset.UTC);
-            stored.attempts++;
-        })).replaceWithVoid();
-    }
-
-    private Uni<Void> incrementAttempts(OutboxEvent event) {
-        return Panache.withTransaction(() -> repository.findById(event.id).onItem().ifNotNull()
-                .invoke(stored -> stored.attempts++)).replaceWithVoid();
+            concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
+            skipExecutionIf = OutboxFallbackStartupGuard.class)
+    void fallback() {
+        ReactiveOutboxDispatcher current = dispatcher;
+        if (current != null) {
+            current.request("fallback");
+        }
     }
 }

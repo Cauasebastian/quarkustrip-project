@@ -26,7 +26,7 @@ if ($Profile -eq "full") {
 
 $errors = @()
 foreach ($service in $services) {
-    $containerId = (& docker compose @composeFiles --profile $Profile --profile observability ps -q $service).Trim()
+    $containerId = ((& docker compose @composeFiles --profile $Profile --profile observability ps -q $service) | Out-String).Trim()
     if (-not $containerId) {
         $errors += "$service nao esta em execucao"
         continue
